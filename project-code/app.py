@@ -12,7 +12,7 @@ Windows桌面应用，批量将PDF转换为Markdown
 """
 
 # ========== 版本信息 ==========
-APP_VERSION = "1.1.1"
+APP_VERSION = "1.1.2"
 APP_BUILD_DATE = "2025-12-10"
 
 import os
@@ -47,12 +47,19 @@ def check_existing_process() -> bool:
         with open(LOCK_FILE, 'r') as f:
             old_pid = int(f.read().strip())
         
-        # 检查进程是否存在
-        result = subprocess.run(
-            ['tasklist', '/FI', f'PID eq {old_pid}', '/NH'],
-            capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW
-        )
-        return 'python' in result.stdout.lower() or 'pdf' in result.stdout.lower()
+        # 检查当前PID是否与锁文件中的相同（同一进程）
+        if old_pid == os.getpid():
+            return False
+        
+        # 使用psutil或tasklist检查进程是否存在
+        try:
+            # 方法1：使用os.kill(pid, 0)检查进程是否存在（不发送信号）
+            os.kill(old_pid, 0)
+            return True  # 进程存在
+        except OSError:
+            # 进程不存在，清理锁文件
+            LOCK_FILE.unlink(missing_ok=True)
+            return False
     except:
         return False
 
