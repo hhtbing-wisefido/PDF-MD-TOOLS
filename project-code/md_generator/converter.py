@@ -124,11 +124,46 @@ def _convert_text_block(block: Dict[str, Any]) -> str:
         "heading3": lambda c: f"#### {_get_first_line(c)}",
         "list_item": lambda c: _convert_list_items(c),
         "numbered_list": lambda c: _convert_numbered_list(c),
-        "paragraph": lambda c: c,
+        "code_block": lambda c: _convert_code_block(c),
+        "blockquote": lambda c: _convert_blockquote(c),
+        "paragraph": lambda c: _convert_paragraph(c),
     }
     
     converter = converters.get(block_type, converters["paragraph"])
     return converter(content)
+
+
+def _convert_code_block(content: str) -> str:
+    """转换代码块"""
+    return f"```\n{content}\n```"
+
+
+def _convert_blockquote(content: str) -> str:
+    """转换引用块"""
+    lines = content.split("\n")
+    quoted_lines = []
+    for line in lines:
+        # 移除原有的引用符号
+        line = line.lstrip(">》「『 ")
+        quoted_lines.append(f"> {line}")
+    return "\n".join(quoted_lines)
+
+
+def _convert_paragraph(content: str) -> str:
+    """转换段落，检测数学公式"""
+    import re
+    
+    # 检测行内数学公式（简单启发式）
+    # 例如：x^2, E=mc^2, ∑, ∫, α, β 等
+    math_patterns = [
+        (r'\^(\d+|\{[^}]+\})', r'$^{\1}$'),  # 上标
+        (r'_(\d+|\{[^}]+\})', r'$_{\1}$'),   # 下标
+    ]
+    
+    for pattern, replacement in math_patterns:
+        content = re.sub(pattern, replacement, content)
+    
+    return content
 
 
 def _clean_content(content: str) -> str:

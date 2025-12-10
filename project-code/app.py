@@ -2,12 +2,18 @@
 📄 PDF-MD-TOOLS 桌面应用
 
 Windows桌面应用，批量将PDF转换为Markdown
-- 深度提取PDF内容（文本+图片+图表）
+- 深度提取PDF内容（文本+嵌入图片）
+- 语义化Markdown（标题层级、列表、表格、公式）
 - 左右分栏显示源PDF和生成MD文件
 - 实时日志和转换统计
 - 启动时检查老进程
 - 支持覆盖模式重新转换
+- 多线程加速转换
 """
+
+# ========== 版本信息 ==========
+APP_VERSION = "1.1.0"
+APP_BUILD_DATE = "2025-12-10"
 
 import os
 import sys
@@ -15,6 +21,7 @@ import json
 import hashlib
 import threading
 import subprocess
+import concurrent.futures
 from pathlib import Path
 from datetime import datetime
 from typing import List, Dict, Optional
@@ -145,7 +152,7 @@ class PDFtoMDApp(ctk.CTk):
     def __init__(self):
         super().__init__()
         
-        self.title("📄 PDF-MD-TOOLS - PDF转Markdown工具 (支持图片提取)")
+        self.title(f"📄 PDF-MD-TOOLS v{APP_VERSION} - PDF转Markdown工具")
         self.geometry("1300x900")
         self.minsize(1100, 700)
         
@@ -164,10 +171,10 @@ class PDFtoMDApp(ctk.CTk):
         self.log_messages: List[str] = []
         
         # 转换选项
-        self.extract_images = True
-        self.render_complex_pages = True
+        self.extract_images = True  # 提取嵌入图片
         self.image_dpi = 150
         self.overwrite_mode = False  # 覆盖模式
+        self.max_workers = min(4, os.cpu_count() or 2)  # 并行线程数
         
         self._create_ui()
         
@@ -245,21 +252,21 @@ class PDFtoMDApp(ctk.CTk):
         # 选项
         self.extract_images_var = ctk.BooleanVar(value=True)
         ctk.CTkCheckBox(
-            ctrl_frame, text="提取图片", variable=self.extract_images_var,
+            ctrl_frame, text="提取嵌入图片", variable=self.extract_images_var,
             command=self._update_options
         ).pack(side="left", padx=15)
-        
-        self.render_pages_var = ctk.BooleanVar(value=True)
-        ctk.CTkCheckBox(
-            ctrl_frame, text="渲染复杂图表", variable=self.render_pages_var,
-            command=self._update_options
-        ).pack(side="left", padx=10)
         
         self.overwrite_var = ctk.BooleanVar(value=False)
         ctk.CTkCheckBox(
             ctrl_frame, text="覆盖已有文件", variable=self.overwrite_var,
             command=self._update_options, text_color="#ef4444"
         ).pack(side="left", padx=10)
+        
+        # 版本标签
+        version_label = ctk.CTkLabel(
+            ctrl_frame, text=f"v{APP_VERSION}", font=("", 10), text_color="#6b7280"
+        )
+        version_label.pack(side="left", padx=10)
         
         self.stats_label = ctk.CTkLabel(
             ctrl_frame, text="文件: 0 | 待转换: 0 | 已完成: 0 | 错误: 0", font=("", 12)
@@ -269,7 +276,6 @@ class PDFtoMDApp(ctk.CTk):
     def _update_options(self):
         """更新转换选项"""
         self.extract_images = self.extract_images_var.get()
-        self.render_complex_pages = self.render_pages_var.get()
         self.overwrite_mode = self.overwrite_var.get()
         
         if self.overwrite_mode:
@@ -730,12 +736,11 @@ class PDFtoMDApp(ctk.CTk):
         file_item.progress = 20
         self.after(0, lambda i=idx, f=file_item: self._update_file_row(i, f))
         
-        # 深度提取PDF
+        # 深度提取PDF（只提取嵌入图片，不渲染整页）
         pdf_content = extract_pdf_content(
             pdf_path=file_item.pdf_path,
             output_dir=self.target_dir,
             extract_images=self.extract_images,
-            render_complex_pages=self.render_complex_pages,
             image_dpi=self.image_dpi
         )
         
@@ -748,14 +753,15 @@ class PDFtoMDApp(ctk.CTk):
         file_item.progress = 80
         self.after(0, lambda i=idx, f=file_item: self._update_file_row(i, f))
         
-        # 保存文件
+        # 保存文件（覆盖模式直接覆盖）
         output_path = self.target_dir / file_item.md_name
-        counter = 1
-        base_name = file_item.pdf_path.stem
-        while output_path.exists():
-            file_item.md_name = f"{base_name}_{counter}.md"
-            output_path = self.target_dir / file_item.md_name
-            counter += 1
+        if not self.overwrite_mode:
+            counter = 1
+            base_name = file_item.pdf_path.stem
+            while output_path.exists():
+                file_item.md_name = f"{base_name}_{counter}.md"
+                output_path = self.target_dir / file_item.md_name
+                counter += 1
         
         output_path.write_text(markdown, encoding='utf-8')
         return pdf_content.total_images

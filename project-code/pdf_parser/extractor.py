@@ -58,18 +58,16 @@ def extract_pdf_content(
     pdf_path: Path,
     output_dir: Path,
     extract_images: bool = True,
-    render_complex_pages: bool = True,
     image_dpi: int = 150
 ) -> PDFContent:
     """
-    深度提取PDF内容
+    深度提取PDF内容（只提取嵌入图片，不渲染整页）
     
     Args:
         pdf_path: PDF文件路径
         output_dir: 输出目录（用于保存图片）
         extract_images: 是否提取嵌入图片
-        render_complex_pages: 是否将复杂页面渲染为图片
-        image_dpi: 渲染DPI
+        image_dpi: 图片DPI
     
     Returns:
         PDFContent: 提取的全部内容
@@ -90,6 +88,8 @@ def extract_pdf_content(
     pdf_content.metadata = {
         "title": doc.metadata.get("title", ""),
         "author": doc.metadata.get("author", ""),
+        "subject": doc.metadata.get("subject", ""),
+        "creator": doc.metadata.get("creator", ""),
         "page_count": len(doc),
         "file_name": pdf_path.name,
     }
@@ -99,31 +99,15 @@ def extract_pdf_content(
     for page_num, page in enumerate(doc, 1):
         page_content = PageContent(page_num=page_num)
         
-        # 1. 提取文本块（保留位置信息）
+        # 1. 提取文本块（保留位置信息，支持多栏布局）
         text_dict = page.get_text("dict", flags=fitz.TEXT_PRESERVE_WHITESPACE)
         page_content.text_blocks = _parse_text_blocks(text_dict)
         
-        # 2. 提取嵌入图片
+        # 2. 提取嵌入图片（只提取PDF中本身就是图片的元素）
         if extract_images:
             page_images = _extract_page_images(page, page_num, base_name, images_dir)
             page_content.images = page_images
             image_counter += len(page_images)
-        
-        # 3. 检测复杂图形（矢量图、图表等）
-        if render_complex_pages:
-            has_complex = _has_complex_graphics(page)
-            page_content.has_complex_graphics = has_complex
-            
-            # 如果页面有复杂图形且图片少，渲染整页
-            if has_complex and len(page_content.images) < 2:
-                page_image = _render_page_to_image(page, image_dpi)
-                if page_image:
-                    # 保存页面图片
-                    page_img_name = f"{base_name}_page{page_num}.png"
-                    page_img_path = images_dir / page_img_name
-                    page_img_path.write_bytes(page_image)
-                    page_content.page_image = page_img_name
-                    image_counter += 1
         
         pdf_content.pages.append(page_content)
     
@@ -134,26 +118,40 @@ def extract_pdf_content(
 
 
 def _parse_text_blocks(text_dict: Dict) -> List[Dict[str, Any]]:
-    """解析文本块，识别标题、段落等"""
+    """解析文本块，识别标题、段落等，并去除页眉页脚"""
     blocks = []
+    page_height = text_dict.get("height", 842)  # A4默认高度
+    page_width = text_dict.get("width", 595)
     
     for block in text_dict.get("blocks", []):
         if block.get("type") != 0:  # 不是文本块
             continue
         
+        bbox = block.get("bbox", [0, 0, 0, 0])
+        
+        # 去噪：过滤页眉（顶部5%）和页脚（底部8%）
+        if bbox[1] < page_height * 0.05:  # 顶部区域
+            continue
+        if bbox[3] > page_height * 0.92:  # 底部区域
+            continue
+        
         block_text = ""
         max_font_size = 0
         is_bold = False
+        is_mono = False  # 等宽字体（代码）
         
         for line in block.get("lines", []):
             line_text = ""
             for span in line.get("spans", []):
                 line_text += span.get("text", "")
                 font_size = span.get("size", 12)
+                font_name = span.get("font", "").lower()
                 if font_size > max_font_size:
                     max_font_size = font_size
-                if "bold" in span.get("font", "").lower():
+                if "bold" in font_name:
                     is_bold = True
+                if any(mono in font_name for mono in ["mono", "courier", "consolas", "code"]):
+                    is_mono = True
             
             block_text += line_text + "\n"
         
@@ -161,24 +159,54 @@ def _parse_text_blocks(text_dict: Dict) -> List[Dict[str, Any]]:
         if not block_text:
             continue
         
+        # 去噪：过滤纯页码
+        if _is_page_number(block_text):
+            continue
+        
         # 判断块类型
-        block_type = _detect_block_type(block_text, max_font_size, is_bold)
+        block_type = _detect_block_type(block_text, max_font_size, is_bold, is_mono)
         
         blocks.append({
             "type": block_type,
             "content": block_text,
             "font_size": max_font_size,
             "is_bold": is_bold,
-            "bbox": block.get("bbox", [0, 0, 0, 0]),
+            "is_mono": is_mono,
+            "bbox": bbox,
+            "x": bbox[0],  # 用于多栏排序
         })
+    
+    # 按阅读顺序排序（先上后下，同行先左后右）
+    blocks.sort(key=lambda b: (b["bbox"][1] // 50, b["x"]))
     
     return blocks
 
 
-def _detect_block_type(text: str, font_size: float, is_bold: bool) -> str:
+def _is_page_number(text: str) -> bool:
+    """检测是否为页码"""
+    text = text.strip()
+    # 纯数字
+    if text.isdigit() and len(text) <= 4:
+        return True
+    # "第X页" 或 "Page X"
+    import re
+    if re.match(r'^(第\s*\d+\s*页|page\s*\d+|p\.\s*\d+|\d+\s*/\s*\d+)$', text, re.IGNORECASE):
+        return True
+    return False
+
+
+def _detect_block_type(text: str, font_size: float, is_bold: bool, is_mono: bool = False) -> str:
     """检测文本块类型"""
     lines = text.split("\n")
     first_line = lines[0].strip() if lines else ""
+    
+    # 代码块检测
+    if is_mono and len(lines) >= 2:
+        return "code_block"
+    
+    # 引用块检测（以引用符号开头）
+    if first_line.startswith((">", "》", "「", "『")):
+        return "blockquote"
     
     # 根据字体大小判断标题级别
     if font_size >= 18 or (is_bold and font_size >= 14):
