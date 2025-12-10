@@ -1,0 +1,39 @@
+﻿name: CI Dictionary
+
+on:
+  pull_request:
+  push:
+    paths:
+      - "project-code/coding_dictionary/**"
+      - "project-code/scripts/**"
+      - "project-code/schema/**"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: project-code
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      
+      - name: Validate
+        run: python scripts/dic_tools.py --validate
+      
+      - name: Generate Markdown
+        run: python scripts/dic_tools.py --generate-md
+      
+      - name: Update CHANGELOG
+        run: python scripts/dic_tools.py --changelog
+      
+      - name: Show changes
+        run: git diff --name-only
+        working-directory: ${{ github.workspace }}
