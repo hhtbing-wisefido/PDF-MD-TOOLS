@@ -1,0 +1,75 @@
+# 📋 PDF-MD-TOOLS Git忽略规则
+
+# ========== Python ==========
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# ========== 虚拟环境 ==========
+.venv/
+venv/
+ENV/
+env/
+.env
+
+# ========== IDE ==========
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.cursor/
+.theia/
+
+# ========== 系统文件 ==========
+desktop.ini
+.DS_Store
+Thumbs.db
+
+# ========== 临时文件 ==========
+temp/
+tmp/
+*.tmp
+*.temp
+*.log
+*.bak
+*_old.*
+*_backup.*
+
+# ========== 测试 ==========
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+
+# ========== 项目特定 ==========
+# 测试用PDF文件
+test_pdfs/
+*.pdf
+
+# 输出文件
+output/
+outputs/
+
+# 知识库（只读参考资料，不提交）
+知识库/
+
+# 转换状态文件
+.conversion_state.json

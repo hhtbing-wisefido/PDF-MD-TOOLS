@@ -1,0 +1,24 @@
+# 📦 PDF-MD-TOOLS 依赖
+
+# PDF解析
+PyMuPDF>=1.23.0
+pdfplumber>=0.10.0
+
+# 图像处理
+Pillow>=10.0.0
+
+# 文本处理
+regex>=2023.0.0
+
+# GUI框架
+customtkinter>=5.2.0
+
+# CLI（可选）
+click>=8.1.0
+rich>=13.0.0
+
+# 开发依赖
+pytest>=7.4.0
+pytest-cov>=4.1.0
+black>=23.0.0
+flake8>=6.1.0
