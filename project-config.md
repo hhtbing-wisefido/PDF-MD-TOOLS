@@ -1,15 +1,22 @@
 # 📋 项目配置 - PDF-MD-TOOLS
 
 **项目名称**: PDF-MD-TOOLS  
-**项目类型**: Python工具  
+**项目类型**: Windows桌面应用 + Python工具  
 **创建日期**: 2025-12-10  
-**版本**: v0.1.0
+**当前版本**: v1.1.3  
+**GitHub Release**: [下载EXE](https://github.com/hhtbing-wisefido/PDF-MD-TOOLS/releases/tag/v1.1.3)
 
 ---
 
 ## 🎯 项目说明
 
-将PDF文件转换为Markdown格式的Python工具。
+Windows桌面应用 - 批量将PDF转换为语义化Markdown。
+
+**核心功能**：
+- PDF深度解析（文本+图片）
+- 语义化Markdown（标题/列表/代码块）
+- 元数据追溯（源文件路径）
+- 进程检测防重复启动
 
 ---
 
@@ -31,9 +38,9 @@
 ## 🔧 技术栈
 
 - **语言**: Python 3.9+
+- **GUI**: customtkinter
 - **PDF解析**: PyMuPDF / pdfplumber
-- **文本处理**: regex
-- **CLI**: argparse / click
+- **打包**: PyInstaller
 
 ---
 
@@ -41,30 +48,43 @@
 
 ```
 project-code/
-├── pdf_parser/          PDF解析模块
+├── pdf_parser/          PDF深度解析模块
 │   ├── __init__.py
-│   ├── extractor.py     文本提取
+│   ├── extractor.py     深度提取（文本+图片+去噪）
 │   └── layout.py        布局分析
 ├── md_generator/        Markdown生成模块
 │   ├── __init__.py
-│   ├── converter.py     格式转换
+│   ├── converter.py     语义化转换
 │   └── formatter.py     格式化
-├── utils/               工具模块
-│   ├── __init__.py
-│   └── helpers.py       辅助函数
-├── tests/               测试文件
-├── main.py              主入口
-├── config.py            配置
+├── tests/               单元测试（70个）
+│   ├── test_extractor.py
+│   ├── test_converter.py
+│   ├── test_app.py
+│   └── run_tests.py     测试运行器
+├── app.py               🖥️ GUI主程序
+├── build_exe.py         打包脚本
 └── README.md            代码说明
 ```
+
+---
+
+## 🛠️ 版本历史
+
+| 版本 | 日期 | 说明 |
+|------|------|------|
+| v1.1.3 | 2025-12-10 | 修复Windows进程检测，发布EXE |
+| v1.1.1 | 2025-12-10 | 添加打开目标目录按钮 |
+| v1.1.0 | 2025-12-10 | 版本机制、语义化Markdown、去噪 |
+| v1.0.0 | 2025-12-10 | 初始版本 |
 
 ---
 
 ## ✅ 规则适用
 
 本项目遵循 `.windsurf/rules/` 中的所有规则：
-- 00-11号规则完全适用
+- 00-12号规则完全适用
 - 知识库目录为只读
+- pip安装使用代理 `socks5://127.0.0.1:4000`
 
 ---
 
