@@ -12,7 +12,7 @@ Windows桌面应用，批量将PDF转换为Markdown
 """
 
 # ========== 版本信息 ==========
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.1.1"
 APP_BUILD_DATE = "2025-12-10"
 
 import os
@@ -220,6 +220,8 @@ class PDFtoMDApp(ctk.CTk):
         ctk.CTkButton(top_frame, text="浏览", width=70, command=self._select_target_dir).grid(
             row=0, column=5, padx=5, pady=8
         )
+        ctk.CTkButton(top_frame, text="📁 打开", width=70, command=self._open_target_dir,
+                      fg_color="#6b7280").grid(row=0, column=6, padx=5, pady=8)
         
         # 控制按钮行
         ctrl_frame = ctk.CTkFrame(top_frame, fg_color="transparent")
@@ -498,6 +500,19 @@ class PDFtoMDApp(ctk.CTk):
             self.conversion_state = ConversionState(state_file)
             self._update_status("✅ 已选择目标目录")
             self._log(f"选择目标目录: {dir_path}", "INFO")
+    
+    def _open_target_dir(self):
+        """打开目标目录"""
+        if not self.target_dir:
+            messagebox.showwarning("警告", "请先选择目标目录")
+            return
+        if not self.target_dir.exists():
+            messagebox.showwarning("警告", "目标目录不存在")
+            return
+        
+        # Windows下使用explorer打开目录
+        os.startfile(str(self.target_dir))
+        self._log(f"打开目标目录: {self.target_dir}", "INFO")
     
     def _scan_files(self):
         """扫描PDF文件"""
