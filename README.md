@@ -1,46 +1,50 @@
 # 📄 PDF-MD-TOOLS
 
-> 将PDF文件转换为Markdown格式的Python工具
+> Windows桌面应用 - 批量将PDF转换为语义化Markdown
 
 [![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://python.org)
-[![Version](https://img.shields.io/badge/version-v0.1.0-green.svg)]()
+[![Version](https://img.shields.io/badge/version-v1.1.3-green.svg)]()
+[![Tests](https://img.shields.io/badge/tests-70%20passed-brightgreen.svg)]()
 [![License](https://img.shields.io/badge/license-MIT-yellow.svg)]()
 
 ---
 
 ## ✨ 功能特性
 
-- 🔄 **PDF转Markdown** - 将PDF文档转换为结构化Markdown
-- 📊 **布局分析** - 智能识别标题、段落、列表
-- 🖼️ **图片提取** - 支持提取PDF中的图片
-- 📋 **表格识别** - 识别并转换表格（计划中）
-- 🔧 **批量处理** - 支持批量转换多个PDF文件
+- 🖥️ **Windows桌面应用** - 现代化GUI界面，左右分栏显示
+- 🔄 **深度PDF解析** - 语义化提取（标题层级、列表、代码块、引用）
+- 🖼️ **嵌入图片提取** - 自动提取PDF中的图片并保存
+- 🧹 **智能去噪** - 自动过滤页眉、页脚、页码
+- 📖 **多栏支持** - 正确处理多栏PDF的阅读顺序
+- 📋 **元数据追溯** - MD文件包含源PDF绝对路径和元数据
+- 🔄 **断点续传** - 支持中断后继续转换
+- ✅ **覆盖模式** - 支持重新转换覆盖已有文件
+- 🔒 **进程检测** - 防止重复启动
 
 ---
 
 ## 🚀 快速开始
 
-### 安装依赖
+### 1. 安装依赖
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 启动桌面应用（推荐）
+### 2. 启动桌面应用
 
 ```bash
-python run_app.py
+cd project-code
+python app.py
 ```
 
-### 命令行使用
+### 3. 使用步骤
 
-```bash
-# 转换单个PDF
-python project-code/main.py input.pdf -o output.md
-
-# 批量转换
-python project-code/main.py ./pdfs/ -o ./outputs/
-```
+1. 点击 **浏览** 选择源目录（包含PDF的目录）
+2. 点击 **浏览** 选择目标目录（输出MD的目录）
+3. 点击 **🔍 扫描PDF** 扫描文件
+4. 点击 **▶️ 开始转换** 开始批量转换
+5. 点击 **📁 打开** 查看输出目录
 
 ---
 
@@ -48,38 +52,67 @@ python project-code/main.py ./pdfs/ -o ./outputs/
 
 ```
 PDF-MD-TOOLS/
-├── .windsurf/              Windsurf配置
-│   └── rules/              规则系统（00-11）
+├── .windsurf/              Windsurf规则配置
+│   └── rules/              规则系统（00-13）
+├── .github/                GitHub配置
+│   └── instructions/       Copilot指令
 ├── project-code/           源代码 ⭐
-│   ├── pdf_parser/         PDF解析模块
-│   ├── md_generator/       Markdown生成模块
-│   ├── utils/              工具模块
-│   ├── tests/              测试文件
-│   ├── main.py             主入口
+│   ├── pdf_parser/         PDF深度解析模块
+│   ├── md_generator/       Markdown转换模块
+│   ├── tests/              单元测试（70个测试用例）
+│   ├── app.py              🖥️ GUI桌面应用主程序
 │   └── README.md           代码说明
 ├── 项目文档/               开发文档
 │   ├── 1-需求与设计/       需求、架构
-│   ├── 2-开发记录/         开发记录
+│   ├── 2-开发记录/         开发过程记录
 │   ├── 3-部署运维/         部署指南
 │   ├── 4-完成度检查/       质量检查
 │   └── 9-归档/             历史归档
-├── 知识库/                 只读参考资料（可选）
 ├── project-config.md       项目配置
-├── requirements.txt        依赖
+├── requirements.txt        Python依赖
 ├── .gitignore              Git忽略规则
 └── README.md               本文件
 ```
 
 ---
 
-## 🔧 配置选项
+## 🧪 运行测试
 
-| 参数 | 说明 | 默认值 |
-|------|------|--------|
-| `-o, --output` | 输出路径 | 当前目录 |
-| `-f, --format` | 输出格式 | md |
-| `--extract-images` | 提取图片 | False |
-| `--verbose` | 详细输出 | False |
+```bash
+cd project-code
+python tests/run_tests.py
+```
+
+测试覆盖：
+- ✅ PDF解析（24个测试）
+- ✅ Markdown转换（29个测试）
+- ✅ 应用逻辑（17个测试）
+
+---
+
+## 📊 转换效果
+
+生成的Markdown包含：
+
+```markdown
+# 文档标题
+
+> **源文件名**: example.pdf
+> **源文件绝对路径**: `D:\docs\example.pdf`
+> **作者**: John Doe
+> **页数**: 25
+> **文件大小**: 1234.5 KB
+> **转换时间**: 2025-12-10 16:00:00
+> **提取图片**: 8 张
+
+---
+
+## 第一章 标题
+
+正文内容...
+
+![图片 1-1](images/example_p1_img1.png)
+```
 
 ---
 
@@ -92,15 +125,15 @@ PDF-MD-TOOLS/
 
 ---
 
-## 🛠️ 开发计划
+## 🛠️ 版本历史
 
-- [x] 项目结构初始化
-- [ ] PDF文本提取
-- [ ] 布局分析
-- [ ] Markdown生成
-- [ ] 图片提取
-- [ ] 表格识别
-- [ ] 批量处理
+| 版本 | 日期 | 更新内容 |
+|------|------|----------|
+| v1.1.3 | 2025-12-10 | 修复Windows进程检测 |
+| v1.1.2 | 2025-12-10 | 进程检测优化 |
+| v1.1.1 | 2025-12-10 | 添加打开目标目录按钮 |
+| v1.1.0 | 2025-12-10 | 版本机制、语义化Markdown、去噪 |
+| v1.0.0 | 2025-12-10 | 初始版本 |
 
 ---
 
@@ -110,4 +143,4 @@ MIT License
 
 ---
 
-**最后更新**: 2025-12-10
+**最后更新**: 2025-12-10 | **当前版本**: v1.1.3
