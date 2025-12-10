@@ -23,9 +23,17 @@
 
 ---
 
-## 🚀 快速开始
+## 📥 下载安装
 
-### 1. 安装依赖
+### 方式1：直接下载EXE（推荐）
+
+👉 **[下载 PDF-MD-TOOLS.exe (58MB)](https://github.com/hhtbing-wisefido/PDF-MD-TOOLS/releases/tag/v1.1.3)**
+
+- 无需安装Python
+- 双击即可运行
+- 支持Windows 10/11 64位
+
+### 方式2：从源码运行
 
 ```bash
 pip install -r requirements.txt

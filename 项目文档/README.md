@@ -51,7 +51,9 @@
 | 项目 | 状态 |
 |------|------|
 | 当前版本 | v1.1.3 |
+| 里程碑 | v1.1.3-milestone |
 | 测试用例 | 70个（100%通过）|
+| EXE下载 | [GitHub Release](https://github.com/hhtbing-wisefido/PDF-MD-TOOLS/releases/tag/v1.1.3) |
 | 主要功能 | PDF→MD转换、图片提取、进程检测 |
 
 ---

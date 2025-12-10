@@ -24,6 +24,8 @@ project-code/
 │   └── README.md           测试说明
 ├── __init__.py          包入口
 ├── app.py               🖥️ GUI桌面应用主程序
+├── build_exe.py         📦 EXE打包脚本
+├── dist/                生成的EXE文件
 └── README.md            本文件
 ```
 
@@ -37,6 +39,9 @@ python app.py
 
 # 运行测试
 python tests/run_tests.py
+
+# 打包为EXE
+python build_exe.py
 ```
 
 ---
@@ -79,7 +84,8 @@ python tests/run_tests.py
 - **当前版本**: v1.1.3
 - **构建日期**: 2025-12-10
 - **Python**: 3.9+
+- **EXE下载**: [GitHub Release](https://github.com/hhtbing-wisefido/PDF-MD-TOOLS/releases/tag/v1.1.3)
 
 ---
 
-**最后更新**: 2025-12-10
+**最后更新**: 2025-12-10 | **里程碑**: v1.1.3-milestone

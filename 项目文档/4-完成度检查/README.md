@@ -58,6 +58,15 @@
 - [x] 类型注解
 - [x] 文档注释
 - [x] README完整
+- [x] EXE打包发布
+
+---
+
+## 📥 发布状态
+
+- **GitHub Release**: [v1.1.3](https://github.com/hhtbing-wisefido/PDF-MD-TOOLS/releases/tag/v1.1.3)
+- **EXE文件**: PDF-MD-TOOLS.exe (58MB)
+- **里程碑**: v1.1.3-milestone
 
 ---
 
