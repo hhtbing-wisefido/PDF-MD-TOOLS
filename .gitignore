@@ -73,3 +73,7 @@ outputs/
 
 # 转换状态文件
 .conversion_state.json
+
+# ========== 打包 ==========
+*.spec
+release/
