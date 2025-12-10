@@ -52,7 +52,11 @@ def convert_to_markdown(
     if pdf_content.metadata.get("creator"):
         lines.append(f"> **创建程序**: {pdf_content.metadata['creator']}")
     lines.append(f"> **页数**: {pdf_content.metadata.get('page_count', len(pdf_content.pages))}")
-    lines.append(f"> **文件大小**: {pdf_path.stat().st_size / 1024:.1f} KB")
+    try:
+        file_size = pdf_path.stat().st_size / 1024
+        lines.append(f"> **文件大小**: {file_size:.1f} KB")
+    except (OSError, FileNotFoundError):
+        pass  # 文件不存在时跳过
     lines.append(f"> **转换时间**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     if pdf_content.total_images > 0:
         lines.append(f"> **提取图片**: {pdf_content.total_images} 张")
