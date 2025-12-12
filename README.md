@@ -3,7 +3,7 @@
 > Windows桌面应用 - 批量将PDF转换为语义化Markdown
 
 [![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://python.org)
-[![Version](https://img.shields.io/badge/version-v1.1.3-green.svg)]()
+[![Version](https://img.shields.io/badge/version-v1.1.4-green.svg)]()
 [![Tests](https://img.shields.io/badge/tests-70%20passed-brightgreen.svg)]()
 [![License](https://img.shields.io/badge/license-MIT-yellow.svg)]()
 
@@ -27,7 +27,7 @@
 
 ### 方式1：直接下载EXE（推荐）
 
-👉 **[下载 PDF-MD-TOOLS.exe (58MB)](https://github.com/hhtbing-wisefido/PDF-MD-TOOLS/releases/tag/v1.1.3)**
+👉 **[下载 PDF-MD-TOOLS.exe (58MB)](https://github.com/hhtbing-wisefido/PDF-MD-TOOLS/releases/tag/v1.1.4)**
 
 - 无需安装Python
 - 双击即可运行

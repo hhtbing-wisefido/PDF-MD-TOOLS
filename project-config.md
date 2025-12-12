@@ -3,8 +3,8 @@
 **项目名称**: PDF-MD-TOOLS  
 **项目类型**: Windows桌面应用 + Python工具  
 **创建日期**: 2025-12-10  
-**当前版本**: v1.1.3  
-**GitHub Release**: [下载EXE](https://github.com/hhtbing-wisefido/PDF-MD-TOOLS/releases/tag/v1.1.3)
+**当前版本**: v1.1.4  
+**GitHub Release**: [下载EXE](https://github.com/hhtbing-wisefido/PDF-MD-TOOLS/releases/tag/v1.1.4)
 
 ---
 
@@ -72,6 +72,7 @@ project-code/
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| v1.1.4 | 2025-12-12 | 修复图片引用URL编码问题（中文文件名） |
 | v1.1.3 | 2025-12-10 | 修复Windows进程检测，发布EXE |
 | v1.1.1 | 2025-12-10 | 添加打开目标目录按钮 |
 | v1.1.0 | 2025-12-10 | 版本机制、语义化Markdown、去噪 |

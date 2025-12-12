@@ -1,6 +1,6 @@
 # 📚 项目文档
 
-> PDF-MD-TOOLS 开发文档目录 | **v1.1.3**
+> PDF-MD-TOOLS 开发文档目录 | **v1.1.4**
 
 ---
 
@@ -50,11 +50,11 @@
 
 | 项目 | 状态 |
 |------|------|
-| 当前版本 | v1.1.3 |
-| 里程碑 | v1.1.3-milestone |
+| 当前版本 | v1.1.4 |
+| 里程碁 | v1.1.4-milestone |
 | 测试用例 | 70个（100%通过）|
-| EXE下载 | [GitHub Release](https://github.com/hhtbing-wisefido/PDF-MD-TOOLS/releases/tag/v1.1.3) |
-| 主要功能 | PDF→MD转换、图片提取、进程检测 |
+| EXE下载 | [GitHub Release](https://github.com/hhtbing-wisefido/PDF-MD-TOOLS/releases/tag/v1.1.4) |
+| 主要功能 | PDF→MD转换、图片提取、URL编码 |
 
 ---
 

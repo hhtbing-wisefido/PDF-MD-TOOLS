@@ -12,8 +12,8 @@ Windows桌面应用，批量将PDF转换为Markdown
 """
 
 # ========== 版本信息 ==========
-APP_VERSION = "1.1.3"
-APP_BUILD_DATE = "2025-12-10"
+APP_VERSION = "1.1.4"
+APP_BUILD_DATE = "2025-12-12"
 
 import os
 import sys

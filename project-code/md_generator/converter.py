@@ -10,8 +10,7 @@
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from datetime import datetime
-
-# 导入PDF解析结果类型
+from urllib.parse import quote# 导入PDF解析结果类型
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from pdf_parser.extractor import PDFContent, PageContent, ExtractedImage
@@ -97,10 +96,12 @@ def _convert_page(
     if page.images and not page.page_image:
         for img in page.images:
             img_filename = img.get_filename(base_name)
+            # URL编码图片文件名，处理中文和特殊字符
+            encoded_filename = quote(img_filename)
             alt_text = f"图片 {img.page_num}-{img.image_index}"
             if img.width and img.height:
                 alt_text += f" ({img.width}x{img.height})"
-            lines.append(f"![{alt_text}]({images_subdir}/{img_filename})")
+            lines.append(f"![{alt_text}]({images_subdir}/{encoded_filename})")
             lines.append("")
     
     # 页面分隔
