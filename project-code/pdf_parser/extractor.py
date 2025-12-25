@@ -57,6 +57,7 @@ class PDFContent:
 def extract_pdf_content(
     pdf_path: Path,
     output_dir: Path,
+    images_subdir: str = "images",
     extract_images: bool = True,
     image_dpi: int = 150
 ) -> PDFContent:
@@ -65,7 +66,8 @@ def extract_pdf_content(
     
     Args:
         pdf_path: PDF文件路径
-        output_dir: 输出目录（用于保存图片）
+        output_dir: 输出目录（图片子目录的父目录）
+        images_subdir: 图片子目录名（默认"images"）
         extract_images: 是否提取嵌入图片
         image_dpi: 图片DPI
     
@@ -76,7 +78,7 @@ def extract_pdf_content(
         raise ImportError("需要安装 PyMuPDF: pip install PyMuPDF")
     
     # 创建图片目录
-    images_dir = output_dir / "images"
+    images_dir = output_dir / images_subdir
     images_dir.mkdir(parents=True, exist_ok=True)
     
     pdf_content = PDFContent()

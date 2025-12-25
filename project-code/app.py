@@ -12,8 +12,8 @@ Windows桌面应用，批量将PDF转换为Markdown
 """
 
 # ========== 版本信息 ==========
-APP_VERSION = "1.1.4"
-APP_BUILD_DATE = "2025-12-12"
+APP_VERSION = "1.2.0"
+APP_BUILD_DATE = "2025-12-25"
 
 import os
 import sys
@@ -186,6 +186,7 @@ class PDFtoMDApp(ctk.CTk):
         self.extract_images = True  # 提取嵌入图片
         self.image_dpi = 150
         self.overwrite_mode = False  # 覆盖模式
+        self.output_mode = "centralized"  # 输出模式: "centralized"(集中输出) 或 "inplace"(就地输出)
         self.max_workers = min(4, os.cpu_count() or 2)  # 并行线程数
         
         self._create_ui()
@@ -214,30 +215,57 @@ class PDFtoMDApp(ctk.CTk):
         top_frame.grid_columnconfigure(1, weight=1)
         top_frame.grid_columnconfigure(4, weight=1)
         
+        # 输出模式选择（大而明显）
+        mode_frame = ctk.CTkFrame(top_frame, fg_color="#1e3a8a", corner_radius=10)
+        mode_frame.grid(row=0, column=0, columnspan=7, padx=10, pady=10, sticky="ew")
+        
+        ctk.CTkLabel(mode_frame, text="📤 输出模式:", font=("", 15, "bold"), 
+                     text_color="white").pack(side="left", padx=15)
+        
+        self.output_mode_var = ctk.StringVar(value="centralized")
+        
+        self.centralized_radio = ctk.CTkRadioButton(
+            mode_frame, text="集中输出到目标目录", variable=self.output_mode_var,
+            value="centralized", command=self._on_output_mode_changed,
+            font=("", 14, "bold"), text_color="white", fg_color="#3b82f6",
+            hover_color="#2563eb", radiobutton_width=22, radiobutton_height=22
+        )
+        self.centralized_radio.pack(side="left", padx=20)
+        
+        self.inplace_radio = ctk.CTkRadioButton(
+            mode_frame, text="就地输出到源文件目录", variable=self.output_mode_var,
+            value="inplace", command=self._on_output_mode_changed,
+            font=("", 14, "bold"), text_color="white", fg_color="#10b981",
+            hover_color="#059669", radiobutton_width=22, radiobutton_height=22
+        )
+        self.inplace_radio.pack(side="left", padx=20)
+        
         # 目录选择行
         ctk.CTkLabel(top_frame, text="📁 源目录:", font=("", 13, "bold")).grid(
-            row=0, column=0, padx=10, pady=8, sticky="w"
+            row=1, column=0, padx=10, pady=8, sticky="w"
         )
         self.source_entry = ctk.CTkEntry(top_frame, placeholder_text="选择包含PDF的目录...", width=300)
-        self.source_entry.grid(row=0, column=1, padx=5, pady=8, sticky="ew")
+        self.source_entry.grid(row=1, column=1, padx=5, pady=8, sticky="ew")
         ctk.CTkButton(top_frame, text="浏览", width=70, command=self._select_source_dir).grid(
-            row=0, column=2, padx=5, pady=8
+            row=1, column=2, padx=5, pady=8
         )
         
-        ctk.CTkLabel(top_frame, text="📂 目标目录:", font=("", 13, "bold")).grid(
-            row=0, column=3, padx=(20, 10), pady=8, sticky="w"
-        )
+        self.target_label = ctk.CTkLabel(top_frame, text="📂 目标目录:", font=("", 13, "bold"))
+        self.target_label.grid(row=1, column=3, padx=(20, 10), pady=8, sticky="w")
+        
         self.target_entry = ctk.CTkEntry(top_frame, placeholder_text="选择输出目录...", width=300)
-        self.target_entry.grid(row=0, column=4, padx=5, pady=8, sticky="ew")
-        ctk.CTkButton(top_frame, text="浏览", width=70, command=self._select_target_dir).grid(
-            row=0, column=5, padx=5, pady=8
-        )
-        ctk.CTkButton(top_frame, text="📁 打开", width=70, command=self._open_target_dir,
-                      fg_color="#6b7280").grid(row=0, column=6, padx=5, pady=8)
+        self.target_entry.grid(row=1, column=4, padx=5, pady=8, sticky="ew")
+        
+        self.target_browse_btn = ctk.CTkButton(top_frame, text="浏览", width=70, command=self._select_target_dir)
+        self.target_browse_btn.grid(row=1, column=5, padx=5, pady=8)
+        
+        self.target_open_btn = ctk.CTkButton(top_frame, text="📁 打开", width=70, 
+                                              command=self._open_target_dir, fg_color="#6b7280")
+        self.target_open_btn.grid(row=1, column=6, padx=5, pady=8)
         
         # 控制按钮行
         ctrl_frame = ctk.CTkFrame(top_frame, fg_color="transparent")
-        ctrl_frame.grid(row=1, column=0, columnspan=6, pady=5)
+        ctrl_frame.grid(row=2, column=0, columnspan=7, pady=5)
         
         self.scan_btn = ctk.CTkButton(
             ctrl_frame, text="🔍 扫描PDF", width=120,
@@ -294,6 +322,27 @@ class PDFtoMDApp(ctk.CTk):
         
         if self.overwrite_mode:
             self._log("⚠️ 覆盖模式已启用，将重新转换所有文件", "WARNING")
+    
+    def _on_output_mode_changed(self):
+        """输出模式切换时的处理"""
+        self.output_mode = self.output_mode_var.get()
+        
+        if self.output_mode == "inplace":
+            # 就地输出模式：禁用目标目录选择
+            self.target_label.configure(text_color="#6b7280")
+            self.target_entry.configure(state="disabled", fg_color="#374151")
+            self.target_browse_btn.configure(state="disabled")
+            self.target_open_btn.configure(state="disabled")
+            self._log("📍 就地输出模式：文件将保存在源PDF所在目录", "INFO")
+            self._update_status("📍 就地输出模式已启用")
+        else:
+            # 集中输出模式：启用目标目录选择
+            self.target_label.configure(text_color=("gray10", "gray90"))
+            self.target_entry.configure(state="normal", fg_color=("gray75", "gray25"))
+            self.target_browse_btn.configure(state="normal")
+            self.target_open_btn.configure(state="normal")
+            self._log("📂 集中输出模式：文件将保存在目标目录", "INFO")
+            self._update_status("📂 集中输出模式已启用")
     
     def _create_main_frame(self):
         """创建左右分栏主区域"""
@@ -535,6 +584,12 @@ class PDFtoMDApp(ctk.CTk):
             messagebox.showerror("错误", "源目录不存在")
             return
         
+        # 就地输出模式不需要选择目标目录
+        if self.output_mode == "centralized":
+            if not self.target_dir:
+                messagebox.showwarning("警告", "请先选择目标目录")
+                return
+        
         self.scan_btn.configure(state="disabled", text="🔄 扫描中...")
         self._update_status("🔍 正在扫描PDF文件...")
         self._clear_list()
@@ -763,10 +818,31 @@ class PDFtoMDApp(ctk.CTk):
         file_item.progress = 20
         self.after(0, lambda i=idx, f=file_item: self._update_file_row(i, f))
         
-        # 深度提取PDF（只提取嵌入图片，不渲染整页）
+        # 确定输出目录和图片目录
+        if self.output_mode == "inplace":
+            # 就地输出模式：输出到PDF所在目录
+            output_dir = file_item.pdf_path.parent
+            images_dir = output_dir / f"{file_item.pdf_path.stem}_images"
+        else:
+            # 集中输出模式：输出到目标目录
+            output_dir = self.target_dir
+            images_dir = self.target_dir / "images"
+        
+        # 检查输出目录是否可写
+        try:
+            images_dir.mkdir(parents=True, exist_ok=True)
+            # 测试写入权限
+            test_file = images_dir / ".test_write"
+            test_file.write_text("test")
+            test_file.unlink()
+        except (OSError, PermissionError) as e:
+            raise Exception(f"输出目录不可写：{output_dir}。请检查目录权限或选择其他目录。")
+        
+        # 深度提取PDF（提取嵌入图片）
         pdf_content = extract_pdf_content(
             pdf_path=file_item.pdf_path,
-            output_dir=self.target_dir,
+            output_dir=images_dir.parent,  # 传递父目录
+            images_subdir=images_dir.name,  # 传递图片子目录名
             extract_images=self.extract_images,
             image_dpi=self.image_dpi
         )
@@ -775,19 +851,26 @@ class PDFtoMDApp(ctk.CTk):
         self.after(0, lambda i=idx, f=file_item: self._update_file_row(i, f))
         
         # 转换为Markdown
-        markdown = convert_to_markdown(pdf_content, file_item.pdf_path, "images")
+        if self.output_mode == "inplace":
+            # 就地输出模式：使用相对路径引用图片
+            images_subdir = f"{file_item.pdf_path.stem}_images"
+        else:
+            # 集中输出模式：使用统一的 images 目录
+            images_subdir = "images"
+        
+        markdown = convert_to_markdown(pdf_content, file_item.pdf_path, images_subdir)
         
         file_item.progress = 80
         self.after(0, lambda i=idx, f=file_item: self._update_file_row(i, f))
         
         # 保存文件（覆盖模式直接覆盖）
-        output_path = self.target_dir / file_item.md_name
+        output_path = output_dir / file_item.md_name
         if not self.overwrite_mode:
             counter = 1
             base_name = file_item.pdf_path.stem
             while output_path.exists():
                 file_item.md_name = f"{base_name}_{counter}.md"
-                output_path = self.target_dir / file_item.md_name
+                output_path = output_dir / file_item.md_name
                 counter += 1
         
         output_path.write_text(markdown, encoding='utf-8')

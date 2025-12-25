@@ -3,7 +3,7 @@
 > Windows桌面应用 - 批量将PDF转换为语义化Markdown
 
 [![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://python.org)
-[![Version](https://img.shields.io/badge/version-v1.1.4-green.svg)]()
+[![Version](https://img.shields.io/badge/version-v1.2.0-green.svg)]()
 [![Tests](https://img.shields.io/badge/tests-70%20passed-brightgreen.svg)]()
 [![License](https://img.shields.io/badge/license-MIT-yellow.svg)]()
 
@@ -12,6 +12,7 @@
 ## ✨ 功能特性
 
 - 🖥️ **Windows桌面应用** - 现代化GUI界面，左右分栏显示
+- 🎯 **双模式输出** - 集中输出 / 就地输出到源文件目录（v1.2.0新增）
 - 🔄 **深度PDF解析** - 语义化提取（标题层级、列表、代码块、引用）
 - 🖼️ **嵌入图片提取** - 自动提取PDF中的图片并保存
 - 🧹 **智能去噪** - 自动过滤页眉、页脚、页码
@@ -27,7 +28,7 @@
 
 ### 方式1：直接下载EXE（推荐）
 
-👉 **[下载 PDF-MD-TOOLS.exe (58MB)](https://github.com/hhtbing-wisefido/PDF-MD-TOOLS/releases/tag/v1.1.4)**
+👉 **[下载 PDF-MD-TOOLS_v1.2.0.exe (58MB)](https://github.com/hhtbing-wisefido/PDF-MD-TOOLS/releases/tag/v1.2.0)**
 
 - 无需安装Python
 - 双击即可运行
@@ -48,11 +49,20 @@ python app.py
 
 ### 3. 使用步骤
 
-1. 点击 **浏览** 选择源目录（包含PDF的目录）
-2. 点击 **浏览** 选择目标目录（输出MD的目录）
+#### 集中输出模式（默认）
+1. 选择 **📂 集中输出到目标目录**
+2. 点击 **浏览** 选择源目录（包含PDF的目录）
+3. 点击 **浏览** 选择目标目录（输出MD的目录）
+4. 点击 **🔍 扫描PDF** 扫描文件
+5. 点击 **▶️ 开始转换** 开始批量转换
+6. 点击 **📁 打开** 查看输出目录
+
+#### 就地输出模式（v1.2.0新增）
+1. 选择 **📍 就地输出到源文件目录**
+2. 点击 **浏览** 选择源目录（包含PDF的目录）
 3. 点击 **🔍 扫描PDF** 扫描文件
-4. 点击 **▶️ 开始转换** 开始批量转换
-5. 点击 **📁 打开** 查看输出目录
+4. 点击 **▶️ 开始转换**
+5. MD文件和图片将直接保存在PDF所在目录
 
 ---
 
