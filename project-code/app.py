@@ -12,7 +12,7 @@ Windows桌面应用，批量将PDF转换为Markdown
 """
 
 # ========== 版本信息 ==========
-APP_VERSION = "1.2.0"
+APP_VERSION = "1.2.1"
 APP_BUILD_DATE = "2025-12-25"
 
 import os
@@ -185,7 +185,7 @@ class PDFtoMDApp(ctk.CTk):
         # 转换选项
         self.extract_images = True  # 提取嵌入图片
         self.image_dpi = 150
-        self.overwrite_mode = False  # 覆盖模式
+        self.overwrite_mode = True  # 覆盖模式（默认开启）
         self.output_mode = "centralized"  # 输出模式: "centralized"(集中输出) 或 "inplace"(就地输出)
         self.max_workers = min(4, os.cpu_count() or 2)  # 并行线程数
         
@@ -298,7 +298,7 @@ class PDFtoMDApp(ctk.CTk):
             command=self._update_options
         ).pack(side="left", padx=15)
         
-        self.overwrite_var = ctk.BooleanVar(value=False)
+        self.overwrite_var = ctk.BooleanVar(value=True)
         ctk.CTkCheckBox(
             ctrl_frame, text="覆盖已有文件", variable=self.overwrite_var,
             command=self._update_options, text_color="#ef4444"
@@ -735,13 +735,14 @@ class PDFtoMDApp(ctk.CTk):
     
     def _start_conversion(self):
         """开始转换"""
-        if not self.target_dir:
-            messagebox.showwarning("警告", "请先选择目标目录")
-            return
-        
-        self.target_dir.mkdir(parents=True, exist_ok=True)
-        if not self.conversion_state:
-            self.conversion_state = ConversionState(self.target_dir / ".conversion_state.json")
+        # 集中输出模式需要目标目录，就地输出模式不需要
+        if self.output_mode == "centralized":
+            if not self.target_dir:
+                messagebox.showwarning("警告", "请先选择目标目录")
+                return
+            self.target_dir.mkdir(parents=True, exist_ok=True)
+            if not self.conversion_state:
+                self.conversion_state = ConversionState(self.target_dir / ".conversion_state.json")
         
         self.is_converting = True
         self.should_stop = False
