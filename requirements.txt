@@ -1,8 +1,11 @@
-# 📦 PDF-MD-TOOLS 依赖 v2.0
+# 📦 PDF-MD-TOOLS 依赖 v2.1
 
 # PDF解析
 PyMuPDF>=1.23.0
 pdfplumber>=0.10.0
+
+# OCR支持（可选，用于扫描版PDF）
+pytesseract>=0.3.10
 
 # Office文档解析
 python-docx>=1.0.0      # Word文档 (.docx)

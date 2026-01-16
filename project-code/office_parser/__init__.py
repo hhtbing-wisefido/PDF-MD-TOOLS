@@ -16,6 +16,7 @@
 import os
 import io
 import tempfile
+import shutil
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass, field
@@ -25,6 +26,7 @@ from datetime import datetime
 try:
     from docx import Document as DocxDocument
     from docx.shared import Inches
+    from docx.oxml.ns import qn
     HAS_DOCX = True
 except ImportError:
     HAS_DOCX = False
@@ -33,13 +35,16 @@ except ImportError:
 try:
     from pptx import Presentation
     from pptx.util import Inches as PptxInches
+    from pptx.enum.shapes import MSO_SHAPE_TYPE
     HAS_PPTX = True
 except ImportError:
     HAS_PPTX = False
     Presentation = None
+    MSO_SHAPE_TYPE = None
 
 try:
     from openpyxl import load_workbook
+    from openpyxl.drawing.image import Image as OpenpyxlImage
     HAS_OPENPYXL = True
 except ImportError:
     HAS_OPENPYXL = False
@@ -52,12 +57,24 @@ except ImportError:
     HAS_PIL = False
 
 # Windows COM自动化（用于旧格式转换）
-try:
-    import win32com.client
-    import pythoncom
-    HAS_WIN32COM = True
-except ImportError:
-    HAS_WIN32COM = False
+HAS_WIN32COM = False
+win32com = None
+pythoncom = None
+
+def _init_win32com():
+    """延迟初始化win32com，避免导入时错误"""
+    global HAS_WIN32COM, win32com, pythoncom
+    if HAS_WIN32COM:
+        return True
+    try:
+        import win32com.client as _win32com
+        import pythoncom as _pythoncom
+        win32com = _win32com
+        pythoncom = _pythoncom
+        HAS_WIN32COM = True
+        return True
+    except ImportError:
+        return False
 
 
 @dataclass
@@ -299,45 +316,56 @@ def extract_pptx_content(
                     "slide_num": slide_num
                 })
             
-            # 提取图片
-            if extract_images and shape.shape_type == 13:  # MSO_SHAPE_TYPE.PICTURE
-                try:
-                    image_counter += 1
-                    image = shape.image
-                    image_data = image.blob
-                    ext = image.ext
-                    
-                    width, height = 0, 0
-                    if HAS_PIL:
-                        try:
-                            img = Image.open(io.BytesIO(image_data))
-                            width, height = img.size
-                        except:
-                            pass
-                    
-                    extracted_img = ExtractedImage(
-                        image_data=image_data,
-                        image_ext=ext,
-                        index=image_counter,
-                        width=width,
-                        height=height
-                    )
-                    
-                    img_filename = extracted_img.get_filename(file_path.stem)
-                    img_path = images_dir / img_filename
-                    img_path.write_bytes(image_data)
-                    
-                    extracted_img.image_data = b""
-                    content.images.append(extracted_img)
-                    
-                    content.text_content.append({
-                        "type": "image",
-                        "content": f"[图片 {image_counter}]",
-                        "image_index": image_counter,
-                        "slide_num": slide_num
-                    })
-                except Exception as e:
-                    continue
+            # 提取图片 - 使用hasattr检查而非硬编码shape_type
+            if extract_images:
+                # 检查是否为图片形状：优先使用 MSO_SHAPE_TYPE.PICTURE，否则用 hasattr
+                is_picture = False
+                if MSO_SHAPE_TYPE is not None:
+                    try:
+                        is_picture = shape.shape_type == MSO_SHAPE_TYPE.PICTURE
+                    except:
+                        is_picture = hasattr(shape, 'image')
+                else:
+                    is_picture = hasattr(shape, 'image')
+                
+                if is_picture and hasattr(shape, 'image'):
+                    try:
+                        image_counter += 1
+                        image = shape.image
+                        image_data = image.blob
+                        ext = image.ext
+                        
+                        width, height = 0, 0
+                        if HAS_PIL:
+                            try:
+                                img = Image.open(io.BytesIO(image_data))
+                                width, height = img.size
+                            except:
+                                pass
+                        
+                        extracted_img = ExtractedImage(
+                            image_data=image_data,
+                            image_ext=ext,
+                            index=image_counter,
+                            width=width,
+                            height=height
+                        )
+                        
+                        img_filename = extracted_img.get_filename(file_path.stem)
+                        img_path = images_dir / img_filename
+                        img_path.write_bytes(image_data)
+                        
+                        extracted_img.image_data = b""
+                        content.images.append(extracted_img)
+                        
+                        content.text_content.append({
+                            "type": "image",
+                            "content": f"[图片 {image_counter}]",
+                            "image_index": image_counter,
+                            "slide_num": slide_num
+                        })
+                    except Exception as e:
+                        continue
     
     content.total_images = image_counter
     return content
@@ -402,28 +430,58 @@ def extract_xlsx_content(
                 "sheet_name": sheet_name
             })
         
-        # 提取图片
-        if extract_images and hasattr(sheet, '_images'):
-            for img in sheet._images:
-                try:
-                    image_counter += 1
-                    image_data = img._data()
-                    ext = "png"
-                    
-                    extracted_img = ExtractedImage(
-                        image_data=image_data,
-                        image_ext=ext,
-                        index=image_counter
-                    )
-                    
-                    img_filename = extracted_img.get_filename(file_path.stem)
-                    img_path = images_dir / img_filename
-                    img_path.write_bytes(image_data)
-                    
-                    extracted_img.image_data = b""
-                    content.images.append(extracted_img)
-                except:
-                    continue
+        # 提取图片 - openpyxl通过 drawing.image 访问
+        if extract_images:
+            try:
+                # openpyxl 3.0+ 使用 sheet._images 或遍历 drawing
+                images_list = []
+                
+                # 方法1: 尝试 _images 属性 (openpyxl 内部)
+                if hasattr(sheet, '_images') and sheet._images:
+                    images_list = list(sheet._images)
+                
+                # 方法2: 尝试遍历 _drawing (更可靠)
+                if not images_list and hasattr(sheet, '_drawing') and sheet._drawing:
+                    for chart_or_image in sheet._drawing:
+                        if hasattr(chart_or_image, '_data'):
+                            images_list.append(chart_or_image)
+                
+                for img_obj in images_list:
+                    try:
+                        image_counter += 1
+                        # 获取图片数据
+                        if hasattr(img_obj, '_data'):
+                            if callable(img_obj._data):
+                                image_data = img_obj._data()
+                            else:
+                                image_data = img_obj._data
+                        elif hasattr(img_obj, 'ref') and hasattr(img_obj.ref, 'blob'):
+                            image_data = img_obj.ref.blob
+                        else:
+                            continue
+                        
+                        # 确定扩展名
+                        ext = "png"
+                        if hasattr(img_obj, 'format'):
+                            ext = img_obj.format or "png"
+                        
+                        extracted_img = ExtractedImage(
+                            image_data=image_data,
+                            image_ext=ext,
+                            index=image_counter
+                        )
+                        
+                        img_filename = extracted_img.get_filename(file_path.stem)
+                        img_path = images_dir / img_filename
+                        img_path.write_bytes(image_data)
+                        
+                        extracted_img.image_data = b""
+                        content.images.append(extracted_img)
+                    except Exception as e:
+                        image_counter -= 1  # 恢复计数器
+                        continue
+            except Exception as e:
+                pass  # 图片提取失败不影响主流程
     
     wb.close()
     content.total_images = image_counter
@@ -443,52 +501,115 @@ def convert_old_format_to_new(file_path: Path, temp_dir: Path) -> Optional[Path]
     Returns:
         转换后的新格式文件路径，失败返回None
     """
-    if not HAS_WIN32COM:
+    # 延迟初始化 win32com
+    if not _init_win32com():
         return None
     
     suffix = file_path.suffix.lower()
-    new_path = temp_dir / (file_path.stem + {
+    format_map = {
         ".doc": ".docx",
         ".ppt": ".pptx", 
         ".xls": ".xlsx"
-    }.get(suffix, ""))
+    }
+    
+    if suffix not in format_map:
+        return None
+    
+    new_path = temp_dir / (file_path.stem + format_map[suffix])
+    app = None
+    doc = None
     
     try:
         pythoncom.CoInitialize()
         
         if suffix == ".doc":
-            word = win32com.client.Dispatch("Word.Application")
-            word.Visible = False
-            doc = word.Documents.Open(str(file_path.absolute()))
-            doc.SaveAs2(str(new_path.absolute()), FileFormat=16)  # docx format
-            doc.Close()
-            word.Quit()
+            app = win32com.Dispatch("Word.Application")
+            app.Visible = False
+            app.DisplayAlerts = False  # 禁止弹窗
+            try:
+                doc = app.Documents.Open(
+                    str(file_path.absolute()),
+                    ReadOnly=True,
+                    AddToRecentFiles=False
+                )
+                doc.SaveAs2(str(new_path.absolute()), FileFormat=16)  # docx format
+            finally:
+                if doc:
+                    try:
+                        doc.Close(SaveChanges=False)
+                    except:
+                        pass
+                if app:
+                    try:
+                        app.Quit()
+                    except:
+                        pass
             
         elif suffix == ".ppt":
-            ppt = win32com.client.Dispatch("PowerPoint.Application")
-            ppt.Visible = False
-            presentation = ppt.Presentations.Open(str(file_path.absolute()), WithWindow=False)
-            presentation.SaveAs(str(new_path.absolute()), FileFormat=24)  # pptx format
-            presentation.Close()
-            ppt.Quit()
+            app = win32com.Dispatch("PowerPoint.Application")
+            # PowerPoint Visible 必须设为 True 或使用 msoFalse
+            try:
+                doc = app.Presentations.Open(
+                    str(file_path.absolute()),
+                    ReadOnly=True,
+                    WithWindow=False
+                )
+                doc.SaveAs(str(new_path.absolute()), FileFormat=24)  # pptx format
+            finally:
+                if doc:
+                    try:
+                        doc.Close()
+                    except:
+                        pass
+                if app:
+                    try:
+                        app.Quit()
+                    except:
+                        pass
             
         elif suffix == ".xls":
-            excel = win32com.client.Dispatch("Excel.Application")
-            excel.Visible = False
-            workbook = excel.Workbooks.Open(str(file_path.absolute()))
-            workbook.SaveAs(str(new_path.absolute()), FileFormat=51)  # xlsx format
-            workbook.Close()
-            excel.Quit()
+            app = win32com.Dispatch("Excel.Application")
+            app.Visible = False
+            app.DisplayAlerts = False  # 禁止弹窗
+            try:
+                doc = app.Workbooks.Open(
+                    str(file_path.absolute()),
+                    ReadOnly=True,
+                    UpdateLinks=False
+                )
+                doc.SaveAs(str(new_path.absolute()), FileFormat=51)  # xlsx format
+            finally:
+                if doc:
+                    try:
+                        doc.Close(SaveChanges=False)
+                    except:
+                        pass
+                if app:
+                    try:
+                        app.Quit()
+                    except:
+                        pass
         
-        pythoncom.CoUninitialize()
         return new_path if new_path.exists() else None
         
     except Exception as e:
+        # 确保清理COM对象
+        if doc:
+            try:
+                doc.Close()
+            except:
+                pass
+        if app:
+            try:
+                app.Quit()
+            except:
+                pass
+        return None
+    finally:
         try:
             pythoncom.CoUninitialize()
         except:
             pass
-        return None
 
 
 # ========== 通用接口 ==========
@@ -523,7 +644,8 @@ def extract_office_content(
     
     # 旧格式需要转换
     elif suffix in [".doc", ".ppt", ".xls"]:
-        if not HAS_WIN32COM:
+        # 尝试初始化 win32com
+        if not _init_win32com():
             raise ImportError(
                 f"处理 {suffix} 格式需要安装 pywin32 并确保安装了对应的 Office 软件。\n"
                 f"请运行: pip install pywin32\n"
@@ -544,7 +666,6 @@ def extract_office_content(
         finally:
             # 清理临时文件
             try:
-                import shutil
                 shutil.rmtree(temp_dir, ignore_errors=True)
             except:
                 pass

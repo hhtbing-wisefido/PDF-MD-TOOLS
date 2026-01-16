@@ -349,3 +349,142 @@ def extract_pages(pdf_path: Path) -> List[Dict[str, Any]]:
         })
     doc.close()
     return pages
+
+
+# ========== OCR 支持 ==========
+
+# 尝试导入 OCR 引擎
+try:
+    from ocr_engine import (
+        is_ocr_available, 
+        is_scanned_pdf, 
+        ocr_pdf_page,
+        get_ocr_status
+    )
+    HAS_OCR = True
+except ImportError:
+    HAS_OCR = False
+    is_ocr_available = lambda: False
+    is_scanned_pdf = lambda *args, **kwargs: False
+
+
+def extract_pdf_content_with_ocr(
+    pdf_path: Path,
+    output_dir: Path,
+    images_subdir: str = "images",
+    extract_images: bool = True,
+    image_dpi: int = 150,
+    enable_ocr: bool = True,
+    ocr_lang: str = "chi_sim+eng",
+    ocr_dpi: int = 300,
+    progress_callback: callable = None
+) -> PDFContent:
+    """
+    提取PDF内容，支持扫描版PDF的OCR识别
+    
+    Args:
+        pdf_path: PDF文件路径
+        output_dir: 输出目录
+        images_subdir: 图片子目录名
+        extract_images: 是否提取图片
+        image_dpi: 图片DPI
+        enable_ocr: 是否启用OCR（仅对扫描版PDF有效）
+        ocr_lang: OCR语言（默认中英文）
+        ocr_dpi: OCR渲染DPI（越高越清晰但越慢）
+        progress_callback: 进度回调 callback(message, current, total)
+    
+    Returns:
+        PDFContent: 提取的内容
+    """
+    if not HAS_PYMUPDF:
+        raise ImportError("需要安装 PyMuPDF: pip install PyMuPDF")
+    
+    # 检测是否为扫描版PDF
+    use_ocr = False
+    if enable_ocr and HAS_OCR and is_ocr_available():
+        if is_scanned_pdf(pdf_path):
+            use_ocr = True
+            if progress_callback:
+                progress_callback("检测到扫描版PDF，将使用OCR识别...", 0, 0)
+    
+    # 如果不需要OCR，使用普通提取
+    if not use_ocr:
+        return extract_pdf_content(
+            pdf_path, output_dir, images_subdir, extract_images, image_dpi
+        )
+    
+    # OCR 提取流程
+    images_dir = output_dir / images_subdir
+    images_dir.mkdir(parents=True, exist_ok=True)
+    
+    pdf_content = PDFContent()
+    base_name = pdf_path.stem
+    
+    doc = fitz.open(pdf_path)
+    total_pages = len(doc)
+    
+    # 提取元数据
+    pdf_content.metadata = {
+        "title": doc.metadata.get("title", ""),
+        "author": doc.metadata.get("author", ""),
+        "subject": doc.metadata.get("subject", ""),
+        "creator": doc.metadata.get("creator", ""),
+        "page_count": total_pages,
+        "file_name": pdf_path.name,
+        "ocr_processed": True,
+        "ocr_language": ocr_lang,
+    }
+    
+    image_counter = 0
+    
+    for page_num in range(total_pages):
+        if progress_callback:
+            progress_callback(f"OCR识别第 {page_num+1}/{total_pages} 页...", page_num+1, total_pages)
+        
+        page = doc[page_num]
+        page_content = PageContent(page_num=page_num + 1)
+        
+        # OCR 识别该页
+        ocr_result = ocr_pdf_page(pdf_path, page_num, lang=ocr_lang, dpi=ocr_dpi)
+        
+        if ocr_result.text.strip():
+            # 将OCR文本作为段落添加
+            # 简单按段落分割
+            paragraphs = ocr_result.text.split('\n\n')
+            for para in paragraphs:
+                para = para.strip()
+                if para:
+                    page_content.text_blocks.append({
+                        "type": "paragraph",
+                        "content": para,
+                        "font_size": 12,
+                        "is_bold": False,
+                        "is_mono": False,
+                        "bbox": [0, 0, 0, 0],
+                        "x": 0,
+                        "ocr_confidence": ocr_result.confidence,
+                    })
+        
+        # 仍然提取嵌入图片
+        if extract_images:
+            page_images = _extract_page_images(page, page_num + 1, base_name, images_dir)
+            page_content.images = page_images
+            image_counter += len(page_images)
+        
+        pdf_content.pages.append(page_content)
+    
+    doc.close()
+    pdf_content.total_images = image_counter
+    
+    return pdf_content
+
+
+def check_ocr_status() -> dict:
+    """检查OCR功能状态"""
+    if not HAS_OCR:
+        return {
+            "available": False,
+            "message": "OCR模块未安装"
+        }
+    return get_ocr_status()
+

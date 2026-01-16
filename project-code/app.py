@@ -17,7 +17,7 @@ Windows桌面应用，批量将文档转换为Markdown
 """
 
 # ========== 版本信息 ==========
-APP_VERSION = "2.0.0"
+APP_VERSION = "2.1.0"
 APP_BUILD_DATE = "2026-01-16"
 
 import os
@@ -104,6 +104,16 @@ def remove_lock_file():
 # 导入PDF处理模块
 from pdf_parser.extractor import extract_pdf_content, PDFContent
 from md_generator.converter import convert_to_markdown
+
+# OCR支持（可选）
+try:
+    from pdf_parser.extractor import extract_pdf_content_with_ocr, check_ocr_status
+    from ocr_engine import is_ocr_available, get_ocr_status
+    HAS_OCR_SUPPORT = True
+except ImportError:
+    HAS_OCR_SUPPORT = False
+    def is_ocr_available(): return False
+    def check_ocr_status(): return {"available": False, "message": "OCR模块未安装"}
 
 # Office文档解析（可选）
 try:
@@ -213,6 +223,7 @@ class PDFtoMDApp(ctk.CTk):
         self.overwrite_mode = True  # 覆盖模式（默认开启）
         self.output_mode = "centralized"  # 输出模式: "centralized"(集中输出) 或 "inplace"(就地输出)
         self.max_workers = min(4, os.cpu_count() or 2)  # 并行线程数
+        self.enable_ocr = True  # OCR识别扫描版PDF
         
         self._create_ui()
         
@@ -329,6 +340,14 @@ class PDFtoMDApp(ctk.CTk):
             command=self._update_options, text_color="#ef4444"
         ).pack(side="left", padx=10)
         
+        # OCR选项
+        self.enable_ocr_var = ctk.BooleanVar(value=True)
+        self.ocr_checkbox = ctk.CTkCheckBox(
+            ctrl_frame, text="OCR扫描版", variable=self.enable_ocr_var,
+            command=self._update_options, text_color="#8b5cf6"
+        )
+        self.ocr_checkbox.pack(side="left", padx=10)
+        
         # 版本标签
         version_label = ctk.CTkLabel(
             ctrl_frame, text=f"v{APP_VERSION}", font=("", 10), text_color="#6b7280"
@@ -344,9 +363,13 @@ class PDFtoMDApp(ctk.CTk):
         """更新转换选项"""
         self.extract_images = self.extract_images_var.get()
         self.overwrite_mode = self.overwrite_var.get()
+        self.enable_ocr = self.enable_ocr_var.get()
         
         if self.overwrite_mode:
             self._log("⚠️ 覆盖模式已启用，将重新转换所有文件", "WARNING")
+        
+        if self.enable_ocr:
+            self._log("🔍 OCR已启用，扫描版PDF将自动识别文字", "INFO")
     
     def _on_output_mode_changed(self):
         """输出模式切换时的处理"""
@@ -890,14 +913,33 @@ class PDFtoMDApp(ctk.CTk):
         file_type = file_item.file_type.lower()
         
         if file_type == "pdf":
-            # PDF处理
-            pdf_content = extract_pdf_content(
-                pdf_path=file_item.pdf_path,
-                output_dir=images_dir.parent,
-                images_subdir=images_dir.name,
-                extract_images=self.extract_images,
-                image_dpi=self.image_dpi
-            )
+            # PDF处理 - 根据OCR设置选择提取方法
+            if self.enable_ocr and HAS_OCR_SUPPORT and is_ocr_available():
+                # 使用带OCR的提取方法
+                def ocr_progress(msg, current, total):
+                    if total > 0:
+                        file_item.progress = 20 + int(40 * current / total)
+                        self.after(0, lambda i=idx, f=file_item: self._update_file_row(i, f))
+                
+                pdf_content = extract_pdf_content_with_ocr(
+                    pdf_path=file_item.pdf_path,
+                    output_dir=images_dir.parent,
+                    images_subdir=images_dir.name,
+                    extract_images=self.extract_images,
+                    image_dpi=self.image_dpi,
+                    enable_ocr=True,
+                    ocr_lang="chi_sim+eng",
+                    progress_callback=ocr_progress
+                )
+            else:
+                # 普通提取方法
+                pdf_content = extract_pdf_content(
+                    pdf_path=file_item.pdf_path,
+                    output_dir=images_dir.parent,
+                    images_subdir=images_dir.name,
+                    extract_images=self.extract_images,
+                    image_dpi=self.image_dpi
+                )
             
             file_item.progress = 60
             self.after(0, lambda i=idx, f=file_item: self._update_file_row(i, f))
