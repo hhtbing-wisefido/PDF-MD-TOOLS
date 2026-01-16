@@ -194,12 +194,12 @@ class ConversionState:
 
 
 class PDFtoMDApp(ctk.CTk):
-    """PDF转MD桌面应用 - 左右分栏布局"""
+    """文档转MD桌面应用 - 左右分栏布局"""
     
     def __init__(self):
         super().__init__()
         
-        self.title(f"📄 PDF-MD-TOOLS v{APP_VERSION} - PDF转Markdown工具")
+        self.title(f"📄 PDF-MD-TOOLS v{APP_VERSION} - 文档转Markdown工具")
         self.geometry("1300x900")
         self.minsize(1100, 700)
         
@@ -224,6 +224,17 @@ class PDFtoMDApp(ctk.CTk):
         self.output_mode = "centralized"  # 输出模式: "centralized"(集中输出) 或 "inplace"(就地输出)
         self.max_workers = min(4, os.cpu_count() or 2)  # 并行线程数
         self.enable_ocr = True  # OCR识别扫描版PDF
+        
+        # 格式选择（默认全选）
+        self.format_filters = {
+            "pdf": True,
+            "docx": True,
+            "doc": True,
+            "pptx": True,
+            "ppt": True,
+            "xlsx": True,
+            "xls": True,
+        }
         
         self._create_ui()
         
@@ -299,9 +310,50 @@ class PDFtoMDApp(ctk.CTk):
                                               command=self._open_target_dir, fg_color="#6b7280")
         self.target_open_btn.grid(row=1, column=6, padx=5, pady=8)
         
+        # 格式选择行
+        format_frame = ctk.CTkFrame(top_frame, fg_color="#1f2937", corner_radius=8)
+        format_frame.grid(row=2, column=0, columnspan=7, padx=10, pady=5, sticky="ew")
+        
+        ctk.CTkLabel(format_frame, text="📋 转换格式:", font=("", 12, "bold"), 
+                     text_color="white").pack(side="left", padx=10)
+        
+        # 格式复选框变量
+        self.format_vars = {}
+        format_options = [
+            ("PDF", "pdf", "#ef4444"),
+            ("DOCX", "docx", "#3b82f6"),
+            ("DOC", "doc", "#60a5fa"),
+            ("PPTX", "pptx", "#f97316"),
+            ("PPT", "ppt", "#fb923c"),
+            ("XLSX", "xlsx", "#22c55e"),
+            ("XLS", "xls", "#4ade80"),
+        ]
+        
+        for label, fmt, color in format_options:
+            var = ctk.BooleanVar(value=True)
+            self.format_vars[fmt] = var
+            cb = ctk.CTkCheckBox(
+                format_frame, text=label, variable=var,
+                command=self._update_format_filter,
+                text_color="white", fg_color=color, hover_color=color,
+                font=("", 11, "bold"), width=70
+            )
+            cb.pack(side="left", padx=8)
+        
+        # 全选/取消全选按钮
+        ctk.CTkButton(
+            format_frame, text="全选", width=50, height=24,
+            command=self._select_all_formats, fg_color="#6b7280"
+        ).pack(side="left", padx=5)
+        
+        ctk.CTkButton(
+            format_frame, text="清空", width=50, height=24,
+            command=self._deselect_all_formats, fg_color="#6b7280"
+        ).pack(side="left", padx=5)
+        
         # 控制按钮行
         ctrl_frame = ctk.CTkFrame(top_frame, fg_color="transparent")
-        ctrl_frame.grid(row=2, column=0, columnspan=7, pady=5)
+        ctrl_frame.grid(row=3, column=0, columnspan=7, pady=5)
         
         self.scan_btn = ctk.CTkButton(
             ctrl_frame, text="🔍 扫描文档", width=120,
@@ -330,15 +382,15 @@ class PDFtoMDApp(ctk.CTk):
         # 选项
         self.extract_images_var = ctk.BooleanVar(value=True)
         ctk.CTkCheckBox(
-            ctrl_frame, text="提取嵌入图片", variable=self.extract_images_var,
+            ctrl_frame, text="提取图片", variable=self.extract_images_var,
             command=self._update_options
-        ).pack(side="left", padx=15)
+        ).pack(side="left", padx=10)
         
         self.overwrite_var = ctk.BooleanVar(value=True)
         ctk.CTkCheckBox(
-            ctrl_frame, text="覆盖已有文件", variable=self.overwrite_var,
+            ctrl_frame, text="覆盖文件", variable=self.overwrite_var,
             command=self._update_options, text_color="#ef4444"
-        ).pack(side="left", padx=10)
+        ).pack(side="left", padx=8)
         
         # OCR选项
         self.enable_ocr_var = ctk.BooleanVar(value=True)
@@ -346,7 +398,14 @@ class PDFtoMDApp(ctk.CTk):
             ctrl_frame, text="OCR扫描版", variable=self.enable_ocr_var,
             command=self._update_options, text_color="#8b5cf6"
         )
-        self.ocr_checkbox.pack(side="left", padx=10)
+        self.ocr_checkbox.pack(side="left", padx=8)
+        
+        # OCR帮助按钮
+        self.ocr_help_btn = ctk.CTkButton(
+            ctrl_frame, text="❓", width=28, height=28,
+            command=self._show_ocr_help, fg_color="#8b5cf6"
+        )
+        self.ocr_help_btn.pack(side="left", padx=2)
         
         # 版本标签
         version_label = ctk.CTkLabel(
@@ -358,6 +417,93 @@ class PDFtoMDApp(ctk.CTk):
             ctrl_frame, text="文件: 0 | 待转换: 0 | 已完成: 0 | 错误: 0", font=("", 12)
         )
         self.stats_label.pack(side="right", padx=20)
+    
+    def _select_all_formats(self):
+        """全选所有格式"""
+        for var in self.format_vars.values():
+            var.set(True)
+        self._update_format_filter()
+    
+    def _deselect_all_formats(self):
+        """取消选择所有格式"""
+        for var in self.format_vars.values():
+            var.set(False)
+        self._update_format_filter()
+    
+    def _update_format_filter(self):
+        """更新格式筛选"""
+        for fmt, var in self.format_vars.items():
+            self.format_filters[fmt] = var.get()
+        
+        selected = [fmt.upper() for fmt, enabled in self.format_filters.items() if enabled]
+        if selected:
+            self._log(f"📋 已选格式: {', '.join(selected)}", "INFO")
+        else:
+            self._log("⚠️ 未选择任何格式，请至少选择一种", "WARNING")
+    
+    def _show_ocr_help(self):
+        """显示OCR安装帮助"""
+        help_text = """🔍 OCR功能说明
+
+OCR（光学字符识别）可以识别扫描版PDF中的文字。
+
+📦 安装要求：
+本功能需要安装 Tesseract-OCR 软件。
+
+📥 下载地址：
+https://github.com/UB-Mannheim/tesseract/wiki
+
+📝 安装步骤：
+1. 访问上述链接，下载 tesseract-ocr-w64-setup-xxx.exe
+2. 运行安装程序
+3. 在"Choose Components"步骤中，展开"Additional language data"
+4. 勾选以下语言包：
+   ✅ Chinese (Simplified) - 简体中文
+   ✅ Chinese (Traditional) - 繁体中文
+5. 完成安装
+6. 将 Tesseract 安装目录添加到系统 PATH：
+   默认路径: C:\\Program Files\\Tesseract-OCR
+
+⚠️ 注意事项：
+- 未安装Tesseract时，OCR功能将自动禁用
+- 安装后需要重启本程序才能生效
+- OCR处理速度较慢，每页约3-5秒
+
+🌐 更多信息请访问项目主页"""
+
+        # 创建帮助窗口
+        help_window = ctk.CTkToplevel(self)
+        help_window.title("OCR 安装帮助")
+        help_window.geometry("550x520")
+        help_window.transient(self)
+        help_window.grab_set()
+        
+        # 内容
+        text_frame = ctk.CTkScrollableFrame(help_window)
+        text_frame.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        help_label = ctk.CTkLabel(
+            text_frame, text=help_text, font=("", 12),
+            justify="left", anchor="w", wraplength=500
+        )
+        help_label.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        # 复制链接按钮
+        btn_frame = ctk.CTkFrame(help_window, fg_color="transparent")
+        btn_frame.pack(fill="x", padx=10, pady=10)
+        
+        def copy_url():
+            self.clipboard_clear()
+            self.clipboard_append("https://github.com/UB-Mannheim/tesseract/wiki")
+            messagebox.showinfo("已复制", "下载链接已复制到剪贴板")
+        
+        ctk.CTkButton(
+            btn_frame, text="📋 复制下载链接", command=copy_url, fg_color="#3b82f6"
+        ).pack(side="left", padx=10)
+        
+        ctk.CTkButton(
+            btn_frame, text="关闭", command=help_window.destroy, fg_color="#6b7280"
+        ).pack(side="right", padx=10)
     
     def _update_options(self):
         """更新转换选项"""
@@ -381,7 +527,7 @@ class PDFtoMDApp(ctk.CTk):
             self.target_entry.configure(state="disabled", fg_color="#374151")
             self.target_browse_btn.configure(state="disabled")
             self.target_open_btn.configure(state="disabled")
-            self._log("📍 就地输出模式：文件将保存在源PDF所在目录", "INFO")
+            self._log("📍 就地输出模式：文件将保存在源文档所在目录", "INFO")
             self._update_status("📍 就地输出模式已启用")
         else:
             # 集中输出模式：启用目标目录选择
@@ -400,14 +546,14 @@ class PDFtoMDApp(ctk.CTk):
         main_frame.grid_columnconfigure(1, weight=1)
         main_frame.grid_rowconfigure(1, weight=1)
         
-        left_label = ctk.CTkLabel(main_frame, text="📄 源PDF文件", font=("", 14, "bold"))
+        left_label = ctk.CTkLabel(main_frame, text="📄 源文档文件", font=("", 14, "bold"))
         left_label.grid(row=0, column=0, padx=10, pady=5, sticky="w")
         
         self.pdf_frame = ctk.CTkScrollableFrame(main_frame)
         self.pdf_frame.grid(row=1, column=0, padx=5, pady=5, sticky="nsew")
         self.pdf_frame.grid_columnconfigure(0, weight=1)
         
-        self._create_list_header(self.pdf_frame, "PDF")
+        self._create_list_header(self.pdf_frame, "源文件")
         
         right_label = ctk.CTkLabel(main_frame, text="📝 生成MD文件", font=("", 14, "bold"))
         right_label.grid(row=0, column=1, padx=10, pady=5, sticky="w")
@@ -649,19 +795,28 @@ class PDFtoMDApp(ctk.CTk):
     def _scan_thread(self):
         """扫描线程"""
         try:
+            # 获取启用的格式
+            enabled_formats = [fmt for fmt, enabled in self.format_filters.items() if enabled]
+            if not enabled_formats:
+                self.after(0, lambda: self._log("⚠️ 请至少选择一种文件格式", "WARNING"))
+                self.after(0, lambda: self.scan_btn.configure(state="normal", text="🔍 扫描文档"))
+                return
+            
             # 扫描所有支持的文件格式
             all_files = []
             
-            # 扫描PDF文件
-            pdf_files = list(self.source_dir.rglob("*.pdf"))
-            all_files.extend([(p, "pdf") for p in pdf_files])
+            # 扫描PDF文件（如果启用）
+            if "pdf" in enabled_formats:
+                pdf_files = list(self.source_dir.rglob("*.pdf"))
+                all_files.extend([(p, "pdf") for p in pdf_files])
             
-            # 扫描Office文件（如果支持）
+            # 扫描Office文件（如果支持且启用）
             if HAS_OFFICE_SUPPORT:
                 for ext in OFFICE_EXTENSIONS:
-                    office_files = list(self.source_dir.rglob(f"*{ext}"))
                     file_type = ext[1:]  # 去掉点号
-                    all_files.extend([(p, file_type) for p in office_files])
+                    if file_type in enabled_formats:
+                        office_files = list(self.source_dir.rglob(f"*{ext}"))
+                        all_files.extend([(p, file_type) for p in office_files])
             
             skipped = 0
             type_counts = {"pdf": 0, "docx": 0, "doc": 0, "pptx": 0, "ppt": 0, "xlsx": 0, "xls": 0}

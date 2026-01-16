@@ -12,7 +12,7 @@ from pathlib import Path
 
 # 项目信息
 APP_NAME = "PDF-MD-TOOLS"
-APP_VERSION = "2.1.0"
+APP_VERSION = "2.0.2"
 MAIN_SCRIPT = "app.py"  # 相对于project-code目录
 
 def clean_build():
