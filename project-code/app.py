@@ -17,7 +17,7 @@ Windows桌面应用，批量将文档转换为Markdown
 """
 
 # ========== 版本信息 ==========
-APP_VERSION = "2.2.0"
+APP_VERSION = "2.2.1"
 APP_BUILD_DATE = "2026-01-16"
 
 import os

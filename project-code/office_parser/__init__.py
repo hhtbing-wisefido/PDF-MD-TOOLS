@@ -362,6 +362,7 @@ def extract_pptx_content(
                             "type": "image",
                             "content": f"[图片 {image_counter}]",
                             "image_index": image_counter,
+                            "image_ext": ext,
                             "slide_num": slide_num
                         })
                     except Exception as e:
@@ -762,13 +763,45 @@ def office_content_to_markdown(
         elif block_type == "image":
             image_counter += 1
             img_index = block.get("image_index", image_counter)
-            img_filename = f"{file_path.stem}_img{img_index}.png"
+            # 从 content.images 获取正确的文件名（包含实际扩展名）
+            img_filename = None
+            for img in content.images:
+                if img.index == img_index:
+                    img_filename = img.get_filename(file_path.stem)
+                    break
+            # 如果找不到，使用 block 中的扩展名，否则默认 png
+            if not img_filename:
+                img_ext = block.get("image_ext", "png")
+                img_filename = f"{file_path.stem}_img{img_index}.{img_ext}"
             img_path = f"{images_subdir}/{quote(img_filename)}"
             lines.append(f"![图片{img_index}]({img_path})")
             lines.append("")
         else:
             # 普通段落
             lines.append(block_content)
+            lines.append("")
+    
+    # 添加未在 text_content 中引用的图片（DOCX/XLSX 的图片）
+    referenced_indices = {
+        block.get("image_index") 
+        for block in content.text_content 
+        if block.get("type") == "image"
+    }
+    unreferenced_images = [img for img in content.images if img.index not in referenced_indices]
+    
+    if unreferenced_images:
+        lines.append("")
+        lines.append("---")
+        lines.append("")
+        lines.append("## 文档图片")
+        lines.append("")
+        for img in unreferenced_images:
+            img_filename = img.get_filename(file_path.stem)
+            img_path = f"{images_subdir}/{quote(img_filename)}"
+            alt_text = f"图片{img.index}"
+            if img.width and img.height:
+                alt_text += f" ({img.width}x{img.height})"
+            lines.append(f"![{alt_text}]({img_path})")
             lines.append("")
     
     return "\n".join(lines)
