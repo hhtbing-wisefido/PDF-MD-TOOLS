@@ -1,19 +1,24 @@
 """
-📄 PDF-MD-TOOLS 桌面应用
+📄 PDF-MD-TOOLS 桌面应用 v2.0
 
-Windows桌面应用，批量将PDF转换为Markdown
-- 深度提取PDF内容（文本+嵌入图片）
+Windows桌面应用，批量将文档转换为Markdown
+支持格式：
+- PDF：深度提取内容（文本+嵌入图片）
+- Word：.doc, .docx
+- PowerPoint：.ppt, .pptx
+- Excel：.xls, .xlsx
+
+功能特性：
 - 语义化Markdown（标题层级、列表、表格、公式）
-- 左右分栏显示源PDF和生成MD文件
+- 左右分栏显示源文件和生成MD文件
 - 实时日志和转换统计
-- 启动时检查老进程
 - 支持覆盖模式重新转换
 - 多线程加速转换
 """
 
 # ========== 版本信息 ==========
-APP_VERSION = "1.2.1"
-APP_BUILD_DATE = "2025-12-25"
+APP_VERSION = "2.0.0"
+APP_BUILD_DATE = "2026-01-16"
 
 import os
 import sys
@@ -100,6 +105,25 @@ def remove_lock_file():
 from pdf_parser.extractor import extract_pdf_content, PDFContent
 from md_generator.converter import convert_to_markdown
 
+# Office文档解析（可选）
+try:
+    from office_parser import (
+        extract_office_content, 
+        office_content_to_markdown,
+        get_supported_extensions as get_office_extensions,
+        check_dependencies as check_office_deps
+    )
+    HAS_OFFICE_SUPPORT = True
+except ImportError:
+    HAS_OFFICE_SUPPORT = False
+    def get_office_extensions(): return []
+    def check_office_deps(): return {}
+
+# 支持的文件扩展名
+PDF_EXTENSIONS = [".pdf"]
+OFFICE_EXTENSIONS = [".doc", ".docx", ".ppt", ".pptx", ".xls", ".xlsx"]
+ALL_EXTENSIONS = PDF_EXTENSIONS + OFFICE_EXTENSIONS
+
 
 class ConvertStatus(Enum):
     """转换状态"""
@@ -113,10 +137,11 @@ class ConvertStatus(Enum):
 @dataclass
 class FileItem:
     """文件项"""
-    pdf_path: Path
-    pdf_name: str
-    md_name: str
+    pdf_path: Path  # 源文件路径（兼容命名，实际支持多种格式）
+    pdf_name: str   # 源文件名
+    md_name: str    # 目标MD文件名
     size: int
+    file_type: str = "pdf"  # 文件类型: pdf, docx, pptx, xlsx, doc, ppt, xls
     status: ConvertStatus = ConvertStatus.PENDING
     progress: int = 0
     error_msg: str = ""
@@ -244,7 +269,7 @@ class PDFtoMDApp(ctk.CTk):
         ctk.CTkLabel(top_frame, text="📁 源目录:", font=("", 13, "bold")).grid(
             row=1, column=0, padx=10, pady=8, sticky="w"
         )
-        self.source_entry = ctk.CTkEntry(top_frame, placeholder_text="选择包含PDF的目录...", width=300)
+        self.source_entry = ctk.CTkEntry(top_frame, placeholder_text="选择包含文档的目录(PDF/Word/PPT/Excel)...", width=300)
         self.source_entry.grid(row=1, column=1, padx=5, pady=8, sticky="ew")
         ctk.CTkButton(top_frame, text="浏览", width=70, command=self._select_source_dir).grid(
             row=1, column=2, padx=5, pady=8
@@ -268,7 +293,7 @@ class PDFtoMDApp(ctk.CTk):
         ctrl_frame.grid(row=2, column=0, columnspan=7, pady=5)
         
         self.scan_btn = ctk.CTkButton(
-            ctrl_frame, text="🔍 扫描PDF", width=120,
+            ctrl_frame, text="🔍 扫描文档", width=120,
             command=self._scan_files, fg_color="#2563eb"
         )
         self.scan_btn.pack(side="left", padx=10)
@@ -593,7 +618,7 @@ class PDFtoMDApp(ctk.CTk):
         self.scan_btn.configure(state="disabled", text="🔄 扫描中...")
         self._update_status("🔍 正在扫描PDF文件...")
         self._clear_list()
-        self._log("开始扫描PDF文件...", "INFO")
+        self._log("开始扫描文档文件...", "INFO")
         
         thread = threading.Thread(target=self._scan_thread, daemon=True)
         thread.start()
@@ -601,10 +626,24 @@ class PDFtoMDApp(ctk.CTk):
     def _scan_thread(self):
         """扫描线程"""
         try:
-            pdf_paths = list(self.source_dir.rglob("*.pdf"))
-            skipped = 0
+            # 扫描所有支持的文件格式
+            all_files = []
             
-            for path in pdf_paths:
+            # 扫描PDF文件
+            pdf_files = list(self.source_dir.rglob("*.pdf"))
+            all_files.extend([(p, "pdf") for p in pdf_files])
+            
+            # 扫描Office文件（如果支持）
+            if HAS_OFFICE_SUPPORT:
+                for ext in OFFICE_EXTENSIONS:
+                    office_files = list(self.source_dir.rglob(f"*{ext}"))
+                    file_type = ext[1:]  # 去掉点号
+                    all_files.extend([(p, file_type) for p in office_files])
+            
+            skipped = 0
+            type_counts = {"pdf": 0, "docx": 0, "doc": 0, "pptx": 0, "ppt": 0, "xlsx": 0, "xls": 0}
+            
+            for path, file_type in all_files:
                 try:
                     if not path.exists():
                         skipped += 1
@@ -612,12 +651,14 @@ class PDFtoMDApp(ctk.CTk):
                     file_size = path.stat().st_size
                     file_item = FileItem(
                         pdf_path=path, pdf_name=path.name,
-                        md_name=path.stem + ".md", size=file_size
+                        md_name=path.stem + ".md", size=file_size,
+                        file_type=file_type
                     )
                     if self.conversion_state and self.conversion_state.is_converted(file_item.get_hash()):
                         file_item.status = ConvertStatus.SKIPPED
                         file_item.progress = 100
                     self.file_items.append(file_item)
+                    type_counts[file_type] = type_counts.get(file_type, 0) + 1
                     self.after(0, lambda f=file_item: self._add_file_row(f))
                 except (OSError, PermissionError):
                     skipped += 1
@@ -625,24 +666,30 @@ class PDFtoMDApp(ctk.CTk):
             
             if skipped > 0:
                 self.after(0, lambda c=skipped: self._log(f"跳过 {c} 个无法访问的文件", "WARNING"))
+            
+            # 记录各类型文件数量
+            type_info = ", ".join([f"{t.upper()}: {c}" for t, c in type_counts.items() if c > 0])
+            if type_info:
+                self.after(0, lambda info=type_info: self._log(f"文件类型统计: {info}", "INFO"))
+            
             self.after(0, self._scan_finished)
         except Exception as e:
             self.after(0, lambda err=str(e): self._log(f"扫描错误: {err}", "ERROR"))
-            self.after(0, lambda: self.scan_btn.configure(state="normal", text="🔍 扫描PDF"))
+            self.after(0, lambda: self.scan_btn.configure(state="normal", text="🔍 扫描文档"))
     
     def _scan_finished(self):
         """扫描完成"""
-        self.scan_btn.configure(state="normal", text="🔍 扫描PDF")
+        self.scan_btn.configure(state="normal", text="🔍 扫描文档")
         self._update_stats()
         self._update_result_counts()
         
         if self.file_items:
             self.convert_btn.configure(state="normal")
-            self._update_status(f"✅ 扫描完成，找到 {len(self.file_items)} 个PDF文件")
-            self._log(f"扫描完成，找到 {len(self.file_items)} 个PDF文件", "SUCCESS")
+            self._update_status(f"✅ 扫描完成，找到 {len(self.file_items)} 个文档文件")
+            self._log(f"扫描完成，找到 {len(self.file_items)} 个文档文件", "SUCCESS")
         else:
-            self._update_status("⚠️ 未找到PDF文件")
-            self._log("未找到PDF文件", "WARNING")
+            self._update_status("⚠️ 未找到支持的文档文件")
+            self._log("未找到支持的文档文件（PDF/Word/PPT/Excel）", "WARNING")
     
     def _add_file_row(self, file_item: FileItem):
         """添加文件行"""
@@ -789,7 +836,7 @@ class PDFtoMDApp(ctk.CTk):
             self.after(0, lambda name=file_item.pdf_name: self._log(f"开始转换: {name}", "INFO"))
             
             try:
-                images_count = self._convert_single_pdf(file_item, idx)
+                images_count = self._convert_single_file(file_item, idx)
                 file_item.status = ConvertStatus.COMPLETED
                 file_item.progress = 100
                 file_item.images_count = images_count
@@ -814,14 +861,14 @@ class PDFtoMDApp(ctk.CTk):
         self.is_converting = False
         self.after(0, self._conversion_finished)
     
-    def _convert_single_pdf(self, file_item: FileItem, idx: int) -> int:
-        """转换单个PDF，返回图片数量"""
+    def _convert_single_file(self, file_item: FileItem, idx: int) -> int:
+        """转换单个文件，返回图片数量"""
         file_item.progress = 20
         self.after(0, lambda i=idx, f=file_item: self._update_file_row(i, f))
         
         # 确定输出目录和图片目录
         if self.output_mode == "inplace":
-            # 就地输出模式：输出到PDF所在目录
+            # 就地输出模式：输出到源文件所在目录
             output_dir = file_item.pdf_path.parent
             images_dir = output_dir / f"{file_item.pdf_path.stem}_images"
         else:
@@ -839,27 +886,53 @@ class PDFtoMDApp(ctk.CTk):
         except (OSError, PermissionError) as e:
             raise Exception(f"输出目录不可写：{output_dir}。请检查目录权限或选择其他目录。")
         
-        # 深度提取PDF（提取嵌入图片）
-        pdf_content = extract_pdf_content(
-            pdf_path=file_item.pdf_path,
-            output_dir=images_dir.parent,  # 传递父目录
-            images_subdir=images_dir.name,  # 传递图片子目录名
-            extract_images=self.extract_images,
-            image_dpi=self.image_dpi
-        )
+        # 根据文件类型选择处理方式
+        file_type = file_item.file_type.lower()
         
-        file_item.progress = 60
-        self.after(0, lambda i=idx, f=file_item: self._update_file_row(i, f))
-        
-        # 转换为Markdown
-        if self.output_mode == "inplace":
-            # 就地输出模式：使用相对路径引用图片
-            images_subdir = f"{file_item.pdf_path.stem}_images"
+        if file_type == "pdf":
+            # PDF处理
+            pdf_content = extract_pdf_content(
+                pdf_path=file_item.pdf_path,
+                output_dir=images_dir.parent,
+                images_subdir=images_dir.name,
+                extract_images=self.extract_images,
+                image_dpi=self.image_dpi
+            )
+            
+            file_item.progress = 60
+            self.after(0, lambda i=idx, f=file_item: self._update_file_row(i, f))
+            
+            # 转换为Markdown
+            if self.output_mode == "inplace":
+                images_subdir = f"{file_item.pdf_path.stem}_images"
+            else:
+                images_subdir = "images"
+            
+            markdown = convert_to_markdown(pdf_content, file_item.pdf_path, images_subdir)
+            total_images = pdf_content.total_images
+            
         else:
-            # 集中输出模式：使用统一的 images 目录
-            images_subdir = "images"
-        
-        markdown = convert_to_markdown(pdf_content, file_item.pdf_path, images_subdir)
+            # Office文档处理
+            if not HAS_OFFICE_SUPPORT:
+                raise Exception("未安装Office文档支持库，请运行: pip install python-docx python-pptx openpyxl")
+            
+            if self.output_mode == "inplace":
+                images_subdir = f"{file_item.pdf_path.stem}_images"
+            else:
+                images_subdir = "images"
+            
+            office_content = extract_office_content(
+                file_path=file_item.pdf_path,
+                output_dir=images_dir.parent,
+                images_subdir=images_subdir,
+                extract_images=self.extract_images
+            )
+            
+            file_item.progress = 60
+            self.after(0, lambda i=idx, f=file_item: self._update_file_row(i, f))
+            
+            markdown = office_content_to_markdown(office_content, file_item.pdf_path, images_subdir)
+            total_images = office_content.total_images
         
         file_item.progress = 80
         self.after(0, lambda i=idx, f=file_item: self._update_file_row(i, f))
@@ -875,7 +948,7 @@ class PDFtoMDApp(ctk.CTk):
                 counter += 1
         
         output_path.write_text(markdown, encoding='utf-8')
-        return pdf_content.total_images
+        return total_images
     
     def _conversion_finished(self):
         """转换完成"""

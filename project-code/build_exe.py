@@ -12,7 +12,7 @@ from pathlib import Path
 
 # 项目信息
 APP_NAME = "PDF-MD-TOOLS"
-APP_VERSION = "1.2.1"
+APP_VERSION = "2.0.0"
 MAIN_SCRIPT = "app.py"  # 相对于project-code目录
 
 def clean_build():
@@ -42,12 +42,20 @@ def build_exe():
         # 添加数据文件（相对于project-code目录）
         "--add-data", "pdf_parser;pdf_parser",
         "--add-data", "md_generator;md_generator",
+        "--add-data", "office_parser;office_parser",
         # 隐藏导入（只包含必要的）
         "--hidden-import", "customtkinter",
         "--hidden-import", "PIL",
         "--hidden-import", "fitz",
         "--hidden-import", "pdfplumber",
         "--hidden-import", "pdfminer",
+        # Office文档支持
+        "--hidden-import", "docx",
+        "--hidden-import", "pptx",
+        "--hidden-import", "openpyxl",
+        "--hidden-import", "win32com",
+        "--hidden-import", "win32com.client",
+        "--hidden-import", "pythoncom",
         # 排除不必要的大型库
         "--exclude-module", "torch",
         "--exclude-module", "torchvision",
