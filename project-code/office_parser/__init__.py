@@ -5,12 +5,14 @@
 - Word: .doc, .docx
 - PowerPoint: .ppt, .pptx  
 - Excel: .xls, .xlsx
+- RTF: .rtf（富文本格式）
 
 依赖：
 - python-docx: docx文件解析
 - python-pptx: pptx文件解析
 - openpyxl: xlsx文件解析
 - pywin32: 旧格式(.doc, .ppt, .xls)转换（仅Windows）
+- striprtf: rtf文件解析
 """
 
 import os
@@ -55,6 +57,14 @@ try:
     HAS_PIL = True
 except ImportError:
     HAS_PIL = False
+
+# RTF解析
+try:
+    from striprtf.striprtf import rtf_to_text
+    HAS_RTF = True
+except ImportError:
+    HAS_RTF = False
+    rtf_to_text = None
 
 # Windows COM自动化（用于旧格式转换）
 HAS_WIN32COM = False
@@ -489,7 +499,130 @@ def extract_xlsx_content(
     return content
 
 
-# ========== 旧格式转换（doc, ppt, xls）==========
+# ========== RTF 解析 ==========
+
+def extract_rtf_content(
+    file_path: Path,
+    output_dir: Path,
+    images_subdir: str = "images",
+    extract_images: bool = True
+) -> OfficeContent:
+    """
+    提取RTF文件内容
+    
+    Args:
+        file_path: RTF文件路径
+        output_dir: 输出目录
+        images_subdir: 图片子目录名
+        extract_images: 是否提取图片（RTF中嵌入的图片支持有限）
+    
+    Returns:
+        OfficeContent: 提取的内容
+    """
+    if not HAS_RTF:
+        raise ImportError("需要安装 striprtf: pip install striprtf")
+    
+    content = OfficeContent(file_type="rtf")
+    
+    # 读取RTF文件
+    try:
+        # 尝试多种编码
+        rtf_text = None
+        encodings = ['utf-8', 'gbk', 'gb2312', 'latin-1', 'cp1252']
+        
+        for encoding in encodings:
+            try:
+                with open(file_path, 'r', encoding=encoding) as f:
+                    rtf_text = f.read()
+                break
+            except UnicodeDecodeError:
+                continue
+        
+        if rtf_text is None:
+            # 最后尝试二进制读取
+            with open(file_path, 'rb') as f:
+                rtf_bytes = f.read()
+            rtf_text = rtf_bytes.decode('latin-1', errors='replace')
+        
+        # 使用 striprtf 提取纯文本
+        plain_text = rtf_to_text(rtf_text)
+        
+    except Exception as e:
+        raise ValueError(f"无法读取RTF文件: {e}")
+    
+    # 设置元数据
+    content.metadata = {
+        "title": file_path.stem,
+        "author": "",
+        "created": "",
+    }
+    content.title = file_path.stem
+    
+    # 解析文本内容
+    lines = plain_text.split('\n')
+    current_paragraph = []
+    
+    for line in lines:
+        line = line.strip()
+        
+        if not line:
+            # 空行表示段落结束
+            if current_paragraph:
+                para_text = ' '.join(current_paragraph)
+                # 判断是否为标题（简单启发式：短行且不以标点结尾）
+                if len(para_text) < 50 and not para_text.endswith(('.', '。', '!', '！', '?', '？', ',')):
+                    content.text_content.append({
+                        "type": "heading1",
+                        "content": para_text
+                    })
+                else:
+                    content.text_content.append({
+                        "type": "paragraph",
+                        "content": para_text
+                    })
+                current_paragraph = []
+        else:
+            # 检测列表项
+            if line.startswith(('• ', '- ', '* ', '· ')):
+                if current_paragraph:
+                    content.text_content.append({
+                        "type": "paragraph",
+                        "content": ' '.join(current_paragraph)
+                    })
+                    current_paragraph = []
+                content.text_content.append({
+                    "type": "list_item",
+                    "content": line[2:].strip()
+                })
+            elif len(line) > 2 and line[0].isdigit() and line[1] in '.）)':
+                # 数字列表
+                if current_paragraph:
+                    content.text_content.append({
+                        "type": "paragraph",
+                        "content": ' '.join(current_paragraph)
+                    })
+                    current_paragraph = []
+                content.text_content.append({
+                    "type": "list_item",
+                    "content": line[2:].strip()
+                })
+            else:
+                current_paragraph.append(line)
+    
+    # 处理最后一个段落
+    if current_paragraph:
+        content.text_content.append({
+            "type": "paragraph",
+            "content": ' '.join(current_paragraph)
+        })
+    
+    # RTF 中的嵌入图片处理（有限支持）
+    # striprtf 不直接支持图片提取，这里只记录信息
+    content.total_images = 0
+    
+    return content
+
+
 
 def convert_old_format_to_new(file_path: Path, temp_dir: Path) -> Optional[Path]:
     """
@@ -642,6 +775,8 @@ def extract_office_content(
         return extract_pptx_content(file_path, output_dir, images_subdir, extract_images)
     elif suffix == ".xlsx":
         return extract_xlsx_content(file_path, output_dir, images_subdir, extract_images)
+    elif suffix == ".rtf":
+        return extract_rtf_content(file_path, output_dir, images_subdir, extract_images)
     
     # 旧格式需要转换
     elif suffix in [".doc", ".ppt", ".xls"]:
@@ -816,6 +951,7 @@ def check_dependencies() -> Dict[str, bool]:
         "openpyxl": HAS_OPENPYXL,
         "pywin32": HAS_WIN32COM,
         "PIL": HAS_PIL,
+        "striprtf": HAS_RTF,
     }
 
 
@@ -830,6 +966,8 @@ def get_supported_extensions() -> List[str]:
         extensions.extend([".pptx"])
     if HAS_OPENPYXL:
         extensions.extend([".xlsx"])
+    if HAS_RTF:
+        extensions.append(".rtf")
     
     # 旧格式需要pywin32
     if HAS_WIN32COM:

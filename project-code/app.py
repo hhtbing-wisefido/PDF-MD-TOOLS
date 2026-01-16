@@ -17,7 +17,7 @@ Windows桌面应用，批量将文档转换为Markdown
 """
 
 # ========== 版本信息 ==========
-APP_VERSION = "2.2.1"
+APP_VERSION = "2.3.0"
 APP_BUILD_DATE = "2026-01-16"
 
 import os
@@ -131,7 +131,7 @@ except ImportError:
 
 # 支持的文件扩展名
 PDF_EXTENSIONS = [".pdf"]
-OFFICE_EXTENSIONS = [".doc", ".docx", ".ppt", ".pptx", ".xls", ".xlsx"]
+OFFICE_EXTENSIONS = [".doc", ".docx", ".ppt", ".pptx", ".xls", ".xlsx", ".rtf"]
 ALL_EXTENSIONS = PDF_EXTENSIONS + OFFICE_EXTENSIONS
 
 
@@ -327,6 +327,7 @@ class PDFtoMDApp(ctk.CTk):
             ("PPT", "ppt", "#fb923c"),
             ("XLSX", "xlsx", "#22c55e"),
             ("XLS", "xls", "#4ade80"),
+            ("RTF", "rtf", "#a855f7"),
         ]
         
         for label, fmt, color in format_options:
