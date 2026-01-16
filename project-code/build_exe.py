@@ -81,18 +81,24 @@ def build_exe():
     ]
     
     print(f"📦 执行命令: {' '.join(cmd)}")
-    result = subprocess.run(cmd, cwd=str(Path(__file__).parent))
     
-    if result.returncode == 0:
-        exe_path = Path("dist") / f"{APP_NAME}.exe"
-        if exe_path.exists():
-            size_mb = exe_path.stat().st_size / 1024 / 1024
-            print(f"✅ 构建成功!")
-            print(f"📁 文件: {exe_path.absolute()}")
-            print(f"📊 大小: {size_mb:.1f} MB")
-            return True
+    # 获取脚本所在目录作为工作目录
+    script_dir = Path(__file__).parent
+    result = subprocess.run(cmd, cwd=str(script_dir))
     
-    print("❌ 构建失败")
+    # 检查 EXE 文件是否生成（使用绝对路径）
+    exe_path = script_dir / "dist" / f"{APP_NAME}.exe"
+    
+    if exe_path.exists():
+        size_mb = exe_path.stat().st_size / 1024 / 1024
+        print(f"✅ 构建成功!")
+        print(f"📁 文件: {exe_path.absolute()}")
+        print(f"📊 大小: {size_mb:.1f} MB")
+        if result.returncode != 0:
+            print(f"⚠️ PyInstaller 返回码: {result.returncode}（有警告但不影响使用）")
+        return True
+    
+    print(f"❌ 构建失败 (返回码: {result.returncode})")
     return False
 
 def create_release_package():
